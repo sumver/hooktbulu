@@ -1,4 +1,4 @@
-# hooktbulu-两步走APP模块
+# hooktbulu-两步走（两步路户外助手）APP模块
 
 目前功能如下：
 
