@@ -1,0 +1,30 @@
+# 忽略构建输出目录
+/app/build/
+/build/
+
+# 忽略IDE相关的配置文件
+/.idea/
+/*.iml
+
+# 忽略系统特定文件
+.DS_Store
+Thumbs.db
+
+# 忽略本地环境配置
+/local.properties
+
+# 快速修复插件相关
+.gradle/
+/captures/
+*.log
+
+# 忽略签名密钥库
+*.jks
+
+# 忽略Gradle Wrapper jar
+gradle/wrapper/gradle-wrapper.jar
+
+# 其他可能需要忽略的文件
+*.class
+*.apk
+*.ap_
