@@ -2,13 +2,17 @@ package com.sumver.tbulu;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
+import android.view.ViewGroup;
 
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
+import java.util.WeakHashMap;
 
 public class hackvip implements IXposedHookLoadPackage {
 
@@ -20,16 +24,24 @@ public class hackvip implements IXposedHookLoadPackage {
     private static final String MAIN_ACTIVITY = "com.lolaage.tbulu.tools.ui.activity.main.MainActivity";
     private static final String BASE_ACTIVITY = "com.lolaage.tbulu.tools.ui.activity.common.BaseActivity";
     private static final String UPGRADE_DIALOG_CLASS = "com.lolaage.tbulu.tools.upgrade.UpgradeInfoDialog";
+    // VIP banner
+    private static final String SETUP_FRAGMENT_CLASS = "com.lolaage.tbulu.tools.ui.fragment.main.SetUpFragment";
 
     // 状态标志
+    // 广告
     private static volatile boolean sHasSkippedAd = false;
+    // 商城TAB
     private static volatile boolean sHasHookedMall = false;
-    private static volatile boolean sHasHookedUpdate = false; // 升级弹窗
+    // 升级弹窗
+    private static volatile boolean sHasHookedUpdate = false;
+    // vip banner 十进制id
+    private static final int RL_VIP_RESOURCE_ID = 2131366304;
 
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
         if (!lpparam.packageName.equals(TARGET_PACKAGE)) return;
 
+        Log.d(TAG, "开始 Hook 包: " + TARGET_PACKAGE);
 
         // 启动页广告+屏蔽商品跳转+屏蔽升级弹窗 放在类初始化之前（performLaunchActivity），因为测试发现oncreate里拦不住，所以拦截时机需要提前
         // 另外activity.getClass()是JVM自带的，看起来遍历所有类好像很消耗性能，但实际上是通过指针寻找，不会造成性能问题
@@ -71,10 +83,11 @@ public class hackvip implements IXposedHookLoadPackage {
                             }
 
                             // 阻止商城TAB跳转到微信小程序
-                            if (!sHasHookedMall) {
+                            // 只有在尚未 Hook 且当前 Activity 是 MainActivity 时才尝试 Hook
+                            if (!sHasHookedMall && MAIN_ACTIVITY.equals(className)) {
                                 try {
                                     XposedHelpers.findAndHookMethod(
-                                            activity.getClass(),
+                                            activity.getClass(), // 关键：使用当前实例的类
                                             "changeTab",
                                             int.class,
                                             new XC_MethodHook() {
@@ -88,12 +101,16 @@ public class hackvip implements IXposedHookLoadPackage {
                                                 }
                                             }
                                     );
-                                    sHasHookedMall = true;
+                                    sHasHookedMall = true; // 设置标志位，只 Hook 一次
                                     Log.i(TAG, "成功 Hook 商城拦截: " + className);
-                                } catch (Exception ignored) {
-                                    Log.w(TAG, "拦截商城跳转失败！");
+                                } catch (Throwable t) { // 重要：捕获 Throwable，包括 NoSuchMethodError
+                                    Log.e(TAG, "拦截商城跳转失败！尝试 Hook " + className + ".changeTab 失败", t);
+                                    // 不设置 sHasHookedMall = true;，以便下次遇到 MainActivity 时重试，这里先预留
+                                    // 或者，如果确定方法就在那里，可以设置标志位防止无限尝试
+                                    // sHasHookedMall = true;
                                 }
                             }
+
 
                             // 阻止升级弹窗
                             if (!sHasHookedUpdate) {
@@ -123,11 +140,67 @@ public class hackvip implements IXposedHookLoadPackage {
                                 }
                             }
 
+
                         } catch (Throwable t) {
                             Log.e(TAG, "performLaunchActivity 异常", t);
                         }
                     }
                 }
         );
+
+        // hook vip banner，不使用classLoader hook是因为加载时机不对总是hook不到，所以改为findViewById，通配所有的view,再从view中实时找到目标ID
+        final WeakHashMap<View, Boolean> hookedViews = new WeakHashMap<>();
+        XposedHelpers.findAndHookMethod(
+                View.class,
+                "findViewById",
+                int.class,
+                new XC_MethodHook() {
+                    @Override
+                    protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                        int requestedId = (int) param.args[0];
+                        View foundView = (View) param.getResult();
+
+                        if (requestedId == RL_VIP_RESOURCE_ID && foundView != null && !hookedViews.containsKey(foundView)) {
+                            Log.d(TAG, "Vip Banner 拦截：rlVip (ID: " + RL_VIP_RESOURCE_ID + "). Type: " + foundView.getClass().getName() + ". Initial Vis: " + foundView.getVisibility());
+
+                            // 标记此 View 已被 Hook
+                            hookedViews.put(foundView, true);
+
+                            // 立即隐藏。这里先不启用，因为进入我的TAB时，这个vip banner渲染了两次，所以这次设置为隐藏实际是没用的
+//                            foundView.setVisibility(View.GONE);
+//                            Log.d(TAG, "Vip Banner 修改 rlVip to GONE. New Vis: " + foundView.getVisibility());
+
+                            // Hook View 类的 setVisibility 方法，但只拦截目标 View 实例的调用
+                            XposedHelpers.findAndHookMethod(
+                                    View.class, // Hook View 父类
+                                    "setVisibility",
+                                    int.class,
+                                    new XC_MethodHook() {
+                                        @Override
+                                        protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                                            View viewBeingModified = (View) param.thisObject; // 获取调用 setVisibility 的 View 实例
+
+                                            // 检查是否是我们的目标 View
+                                            if (viewBeingModified == foundView) {
+                                                int visibility = (int) param.args[0];
+                                                if (visibility == View.VISIBLE) {
+                                                    Log.w(TAG, "VIP Banner拦截成功 rlVip (" + viewBeingModified.hashCode() + ") from being set to VISIBLE! (Attempted Vis: " + visibility + ")");
+                                                    param.args[0] = View.GONE;
+                                                } else {
+                                                    Log.d(TAG, "VIP Banner拦截成功失败 rlVip (" + viewBeingModified.hashCode() + ") to be set to: " + visibility);
+                                                }
+                                            }
+                                        }
+                                    }
+                            );
+                        }
+                    }
+                }
+        );
+
+
+        Log.d(TAG, "完成 Hook 包: " + TARGET_PACKAGE);
     }
+
+
 }
