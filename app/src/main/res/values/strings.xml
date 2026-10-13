@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">两步路去广告</string>
+    <string name="xposed_description">去除两步路 App 的广告位与会员促销横幅（仅隐藏界面元素，不修改任何功能）</string>
+</resources>

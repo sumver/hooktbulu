@@ -1,0 +1,15 @@
+# Gradle / Android 构建产物
+build/
+app/build/
+.gradle/
+.kotlin/
+
+# IDE
+.idea/
+*.iml
+captures/
+
+# 本机相关（SDK 路径等，换机器需自行创建）
+local.properties
+.externalNativeBuild/
+.cxx/
