@@ -2,6 +2,16 @@ plugins {
     id 'com.android.application'
 }
 
+// 本机签名配置从 local.properties 读取（该文件不进版本库）。
+// 找不到配置时 release 构建为未签名产物，仓库本身仍可正常构建。
+def localProps = new Properties()
+def localPropsFile = rootProject.file('local.properties')
+if (localPropsFile.exists()) {
+    localPropsFile.withInputStream { localProps.load(it) }
+}
+def hasReleaseSigning = localProps.getProperty('release.storeFile') != null &&
+        localProps.getProperty('release.storePassword') != null
+
 android {
     namespace 'com.tbulu.adfree'
     compileSdk 34
@@ -10,13 +20,27 @@ android {
         applicationId "com.tbulu.adfree"
         minSdk 26
         targetSdk 34
-        versionCode 2
-        versionName "1.2"
+        versionCode 3
+        versionName "1.3"
+    }
+
+    signingConfigs {
+        release {
+            if (hasReleaseSigning) {
+                storeFile file(localProps.getProperty('release.storeFile'))
+                storePassword localProps.getProperty('release.storePassword')
+                keyAlias localProps.getProperty('release.keyAlias')
+                keyPassword localProps.getProperty('release.keyPassword')
+            }
+        }
     }
 
     buildTypes {
         release {
             minifyEnabled false
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 
