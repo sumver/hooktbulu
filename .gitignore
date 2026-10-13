@@ -9,7 +9,10 @@ app/build/
 *.iml
 captures/
 
-# 本机相关（SDK 路径等，换机器需自行创建）
+# 本机相关（SDK 路径、签名配置等，换机器需自行创建）
 local.properties
 .externalNativeBuild/
 .cxx/
+
+# 构建输出（供手动上传发布用）
+dist/
