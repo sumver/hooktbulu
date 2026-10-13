@@ -1,5 +1,7 @@
 # 两步路去广告（TbuluAdFree）
 
+> 模块版本：**v1.2**（git tag `v1.2`；版本号对应 `app/build.gradle` 的 versionName）
+
 针对 **两步路 App**（`com.lolaage.tbulu.tools`，目标版本 **9.2.8 / versionCode 1652**）的 LSPosed / EdXposed 模块。
 
 只做五件事：
