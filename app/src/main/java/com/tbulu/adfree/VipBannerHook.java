@@ -2,6 +2,7 @@ package com.tbulu.adfree;
 
 import android.app.AndroidAppHelper;
 import android.view.View;
+import android.view.ViewGroup;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -109,7 +110,7 @@ final class VipBannerHook {
         }
     }
 
-    /** 把"我的"页需要隐藏的控件全部置 GONE。 */
+    /** 把"我的"页需要隐藏的控件全部置 GONE，并压缩横幅遗留的空档。 */
     private static void hidePromoViews(Object fragment) {
         try {
             Object viewObj = XposedHelpers.callMethod(fragment, "getView");
@@ -128,8 +129,85 @@ final class VipBannerHook {
                     XposedInit.log(name + " hidden by fragment hook");
                 }
             }
+            compactHeaderSpace(root);
         } catch (Throwable t) {
             XposedInit.log("hidePromoViews failed: " + t);
+        }
+    }
+
+    /**
+     * 去掉 VIP 横幅（rlVip）遗留的空档。
+     *
+     * fragment_setup.xml 原始几何（横幅可见时）：
+     *   - account_part 固定高 252dp；vUserData 面板底边距 60dp（bottom 在 192dp 处）
+     *   - rlVip：marginTop=-50dp、高 72dp → 上浮遮住头部底部 50dp（202~252 这段
+     *     本来就只有横幅可见），向下突出 22dp；面板与横幅之间实际可见间距 10dp
+     *
+     * 横幅隐藏后这两段预留空间全部裸露成空档，处理：
+     *   - account_part 高度 252dp → 202dp（= 252dp + dp_m_50，移除从未可见的 50dp 底带）
+     *   - vUserData 底距 60dp → 10dp（恢复到横幅时代的实际间距）
+     * 面板绝对位置保持不变（底边仍在 192dp），下方宫格上移 50dp。
+     */
+    private static void compactHeaderSpace(View root) {
+        try {
+            // 1) account_part 高度 252dp -> 202dp
+            int idAccountPart = resolveId("account_part");
+            if (idAccountPart != 0) {
+                View accountPart = root.findViewById(idAccountPart);
+                if (accountPart != null) {
+                    ViewGroup.LayoutParams lp = accountPart.getLayoutParams();
+                    int targetHeight = resolvePx("dp_252") + resolvePx("dp_m_50");
+                    if (lp != null && targetHeight > 0 && lp.height != targetHeight) {
+                        lp.height = targetHeight;
+                        accountPart.setLayoutParams(lp);
+                        XposedInit.log("account_part height -> 202dp (" + targetHeight + "px)");
+                    }
+                }
+            }
+            // 2) vUserData 底距 60dp -> 10dp
+            int idUserData = resolveId("vUserData");
+            if (idUserData != 0) {
+                View userData = root.findViewById(idUserData);
+                if (userData != null) {
+                    ViewGroup.LayoutParams lp = userData.getLayoutParams();
+                    if (lp instanceof ViewGroup.MarginLayoutParams) {
+                        ViewGroup.MarginLayoutParams mlp = (ViewGroup.MarginLayoutParams) lp;
+                        int targetMargin = resolvePx("dp_10");
+                        if (targetMargin > 0 && mlp.bottomMargin != targetMargin) {
+                            mlp.bottomMargin = targetMargin;
+                            userData.setLayoutParams(mlp);
+                            XposedInit.log("vUserData bottomMargin -> 10dp (" + targetMargin + "px)");
+                        }
+                    }
+                }
+            }
+        } catch (Throwable t) {
+            XposedInit.log("compactHeaderSpace failed: " + t);
+        }
+    }
+
+    /** 解析 dimens 值（px），带缓存。 */
+    private static final Map<String, Integer> sPxCache = new ConcurrentHashMap<>();
+
+    private static int resolvePx(String dimenName) {
+        Integer cached = sPxCache.get(dimenName);
+        if (cached != null) {
+            return cached;
+        }
+        try {
+            android.app.Application app = AndroidAppHelper.currentApplication();
+            if (app == null) {
+                return 0;
+            }
+            int id = app.getResources().getIdentifier(dimenName, "dimen", XposedInit.TARGET_PKG);
+            if (id == 0) {
+                return 0;
+            }
+            int px = app.getResources().getDimensionPixelSize(id);
+            sPxCache.put(dimenName, px);
+            return px;
+        } catch (Throwable t) {
+            return 0;
         }
     }
 
