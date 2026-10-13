@@ -1,6 +1,6 @@
 # 两步路去广告（TbuluAdFree）
 
-> 模块版本：**v1.2**（git tag `v1.2`；版本号对应 `app/build.gradle` 的 versionName）
+> 模块版本：**v1.4**（git tag `v1.4`；模块包名 `com.sumver.tbulu`；版本号对应 `app/build.gradle` 的 versionName）
 
 针对 **两步路 App**（`com.lolaage.tbulu.tools`，目标版本 **9.2.8 / versionCode 1652**）的 LSPosed / EdXposed 模块。
 
@@ -58,12 +58,13 @@
 
 ```bat
 :: 在项目根目录（含 settings.gradle 的目录）执行：
-gradle assembleDebug
-:: 或使用本机 gradle 8.13：
-C:\Users\24688\.gradle\wrapper\dists\gradle-8.13-bin\5xuhj0ry160q40clulazy9h7d\gradle-8.13\bin\gradle.bat assembleDebug --console=plain
+gradle assembleDebug      :: debug 包
+gradle assembleRelease    :: 正式发布包（release）
 ```
 
-产物：`app\build\outputs\apk\debug\app-debug.apk`（已构建）
+产物：
+- debug：`app\build\outputs\apk\debug\app-debug.apk`
+- release：`app\build\outputs\apk\release\app-release.apk`（已构建）
 
 ## 安装与激活（LSPosed）
 
