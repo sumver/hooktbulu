@@ -51,6 +51,11 @@ public class XposedInit implements IXposedHookLoadPackage {
             log("EquipmentTabHook install failed: " + t);
         }
         try {
+            UpgradeDialogHook.install(lpparam.classLoader);
+        } catch (Throwable t) {
+            log("UpgradeDialogHook install failed: " + t);
+        }
+        try {
             AdsHook.install(lpparam.classLoader);
         } catch (Throwable t) {
             log("AdsHook install failed: " + t);
