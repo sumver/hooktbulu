@@ -1,6 +1,6 @@
 # 两步路去广告（TbuluAdFree）
 
-> 模块版本：**v1.11**（git tag `v1.11`；模块包名 `com.sumver.tbulu`；版本号对应 `app/build.gradle` 的 versionName）
+> 模块版本：**v1.12**（git tag `v1.12`；模块包名 `com.sumver.tbulu`；版本号对应 `app/build.gradle` 的 versionName）
 
 针对 **两步路 App**（`com.lolaage.tbulu.tools`，目标版本 **9.2.8 / versionCode 1652**）的 LSPosed / EdXposed 模块。
 
@@ -84,11 +84,11 @@
 
 模块 App（图标：蓝色盾牌）启动即为设置界面，Material 3（API 31+ 自动应用动态取色），结构：
 
-- 「广告与推广」：隐藏各类广告
+- 「广告净化」：隐藏各类广告
 - 「我的」页净化：会员促销横幅、VIP 客服按钮、dock 栏红点、升级弹窗
-- 交互增强：装备 tab 防误触
+- 交互优化：装备（商城）tab 防误触
 - 会员权益本地解锁：图片水印、DIY首页、头像挂件、专属样式、个性化分享
-- 「使用说明」卡片
+- 「使用说明」卡片（含可点击的开源地址 `https://github.com/sumver/hooktbulu`，Linkify 转链）
 
 **开关 ↔ 功能 ↔ 偏好 key 对照：**
 
