@@ -33,6 +33,8 @@ import de.robv.android.xposed.XposedHelpers;
  *       点"是" → 设置一次性放行标记后再调用原方法（真正打开商城）；
  *       点"否"/取消 → 什么都不做。
  *     弹窗展示期间重复点击不会叠加弹窗。
+ *
+ * 开关：受设置界面「装备 tab 防误触」({@link Prefs#K_EQUIPMENT}) 控制，默认开启。
  */
 final class EquipmentTabHook {
 
@@ -65,6 +67,9 @@ final class EquipmentTabHook {
                 protected void beforeHookedMethod(MethodHookParam param) {
                     if (param.args.length < 1 || !(param.args[0] instanceof Integer)) {
                         return;
+                    }
+                    if (!Prefs.isEnabled(Prefs.K_EQUIPMENT)) {
+                        return; // 开关关闭：不拦截，直接走原点击逻辑
                     }
                     int tab = (Integer) param.args[0];
                     if (tab != TAB_EQUIPMENT) {

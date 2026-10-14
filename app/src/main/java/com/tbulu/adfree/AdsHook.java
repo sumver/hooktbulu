@@ -21,6 +21,9 @@ import de.robv.android.xposed.XposedHelpers;
  *    任何广告视图一旦挂到界面上或试图显示，一律 GONE + 高度 0；
  *  - 精确拦截：在各广告位的"加载/绑定"入口直接跳过（避免无谓的网络请求与渲染）。
  *
+ * 开关：受设置界面「隐藏各类广告」({@link Prefs#K_ADS}) 控制，默认开启；
+ * 关闭后所有拦截点直接放行，行为与未装模块一致。
+ *
  * 全部 Hook 均做了容错：类/方法不存在时只记录日志，不影响 App 运行。
  */
 final class AdsHook {
@@ -63,6 +66,11 @@ final class AdsHook {
     private AdsHook() {
     }
 
+    /** 设置开关：隐藏各类广告（默认开启）。 */
+    private static boolean enabled() {
+        return Prefs.isEnabled(Prefs.K_ADS);
+    }
+
     static void install(ClassLoader cl) {
         installViewGuards();
         installSplash(cl);
@@ -85,6 +93,9 @@ final class AdsHook {
                 View.class, int.class, ViewGroup.LayoutParams.class, new XC_MethodHook() {
                     @Override
                     protected void afterHookedMethod(MethodHookParam param) {
+                        if (!enabled()) {
+                            return;
+                        }
                         try {
                             if (param.args[0] instanceof View && isAdView((View) param.args[0])) {
                                 hideAdView((View) param.args[0]);
@@ -98,6 +109,9 @@ final class AdsHook {
         XposedHelpers.findAndHookMethod(View.class, "setVisibility", int.class, new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) {
+                if (!enabled()) {
+                    return;
+                }
                 try {
                     if (!(param.thisObject instanceof View)) {
                         return;
@@ -206,7 +220,9 @@ final class AdsHook {
             hookAllSafe(cfg, "isNeedShowSplashAdThisTime", new XC_MethodHook() {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam param) {
-                    param.setResult(false);
+                    if (enabled()) {
+                        param.setResult(false);
+                    }
                 }
             });
         }
@@ -217,6 +233,9 @@ final class AdsHook {
      * 等价于用户点击跳过或广告无填充，不影响任何业务功能。
      */
     private static void skipSplash(XC_MethodHook.MethodHookParam param) {
+        if (!enabled()) {
+            return; // 开关关闭：不拦截，正常走原展示流程
+        }
         try {
             XposedHelpers.callMethod(param.thisObject, "OooOoo");
             XposedInit.log("splash ad skipped");
@@ -235,6 +254,9 @@ final class AdsHook {
             hookAllSafe(general, "OooO0Oo", new XC_MethodHook() {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam param) {
+                    if (!enabled()) {
+                        return;
+                    }
                     try {
                         Object holder = param.args[0];
                         Object viewObj = XposedHelpers.callMethod(holder, "OooO0OO");
@@ -254,6 +276,9 @@ final class AdsHook {
             hookAllSafe(itemView, "setData", new XC_MethodHook() {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam param) {
+                    if (!enabled()) {
+                        return;
+                    }
                     if (param.thisObject instanceof View) {
                         hideAdView((View) param.thisObject);
                     }
@@ -272,6 +297,9 @@ final class AdsHook {
             hookAllSafe(takuList, "OooO0O0", new XC_MethodHook() {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam param) {
+                    if (!enabled()) {
+                        return;
+                    }
                     if (param.thisObject instanceof View) {
                         hideAdView((View) param.thisObject);
                     }
@@ -292,6 +320,9 @@ final class AdsHook {
         hookAllSafe(adv, "setDatas", new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) {
+                if (!enabled()) {
+                    return;
+                }
                 if (param.thisObject instanceof View) {
                     hideAdView((View) param.thisObject);
                 }
@@ -302,7 +333,9 @@ final class AdsHook {
         hookAllSafe(adv, "setVisibility", new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) {
-                param.args[0] = View.GONE;
+                if (enabled()) {
+                    param.args[0] = View.GONE;
+                }
             }
         });
     }
@@ -317,6 +350,9 @@ final class AdsHook {
         hookAllSafe(news, "setDatas", new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) {
+                if (!enabled()) {
+                    return;
+                }
                 if (param.thisObject instanceof View) {
                     hideAdView((View) param.thisObject);
                 }
@@ -326,7 +362,9 @@ final class AdsHook {
         hookAllSafe(news, "setVisibility", new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) {
-                param.args[0] = View.GONE;
+                if (enabled()) {
+                    param.args[0] = View.GONE;
+                }
             }
         });
     }
@@ -339,6 +377,9 @@ final class AdsHook {
             hookAllSafe(sportData, "OooO0O0", new XC_MethodHook() {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam param) {
+                    if (!enabled()) {
+                        return;
+                    }
                     if (param.thisObject instanceof View) {
                         hideAdView((View) param.thisObject);
                     }
@@ -352,6 +393,9 @@ final class AdsHook {
             hookAllSafe(sportAd, "setData", new XC_MethodHook() {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam param) {
+                    if (!enabled()) {
+                        return;
+                    }
                     if (param.thisObject instanceof View) {
                         hideAdView((View) param.thisObject);
                     }
@@ -369,6 +413,9 @@ final class AdsHook {
             hookAllSafe(outing, "setData", new XC_MethodHook() {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam param) {
+                    if (!enabled()) {
+                        return;
+                    }
                     if (param.thisObject instanceof View) {
                         hideAdView((View) param.thisObject);
                     }
@@ -386,7 +433,9 @@ final class AdsHook {
             hookAllSafe(dialog, "show", new XC_MethodHook() {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam param) {
-                    param.setResult(null);
+                    if (enabled()) {
+                        param.setResult(null);
+                    }
                 }
             });
         }
@@ -401,7 +450,9 @@ final class AdsHook {
             hookAllSafe(ita, "Oooo000", new XC_MethodHook() {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam param) {
-                    param.setResult(Boolean.FALSE);
+                    if (enabled()) {
+                        param.setResult(Boolean.FALSE);
+                    }
                 }
             });
         }

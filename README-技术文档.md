@@ -1,10 +1,10 @@
 # 两步路去广告（TbuluAdFree）
 
-> 模块版本：**v1.7**（git tag `v1.7`；模块包名 `com.sumver.tbulu`；版本号对应 `app/build.gradle` 的 versionName）
+> 模块版本：**v1.8**（git tag `v1.8`；模块包名 `com.sumver.tbulu`；版本号对应 `app/build.gradle` 的 versionName）
 
 针对 **两步路 App**（`com.lolaage.tbulu.tools`，目标版本 **9.2.8 / versionCode 1652**）的 LSPosed / EdXposed 模块。
 
-只做七件事：
+只做八件事：
 
 1. **隐藏广告位**：开屏广告、首页信息流广告、多页面轮播横幅广告、资讯列表广告、运动记录页广告、出游详情顶部广告、主界面插屏广告、弹窗广告。
 2. **隐藏"我的"页会员促销横幅**（`rlVip`：开通 / 续费会员的横条），并**压缩横幅遗留的空档**：头部块 252dp→202dp、数据面板底距 60dp→10dp，使"个人信息"与下方宫格（运动团/福利抽奖/Top100）自然衔接。
@@ -13,6 +13,7 @@
 5. **装备 tab 防误触**：点击底部 dock 的"装备"（我的左边）不再直接跳商城，先弹窗确认"是否打开商城？"，点"否"保持原样，点"是"再跳转。
 6. **屏蔽升级弹窗**：App 检测到新版本后不再弹窗（版本详情弹窗与"我的"页更新提示弹窗均屏蔽）；自动检测逻辑本身不变。
 7. **解锁五项会员权益的本地门控**（v1.6 新增）：图片水印、DIY首页（把地图设为启动界面）、头像挂件、记录/导航皮肤、个性化分享（高级数据分享图）。仅解除客户端的"需要开通会员"拦截，不伪造账号 VIP 状态、不拦截网络请求、不影响购买流程；皮肤/挂件/分享图等素材与字段仍由服务端下发。
+8. **设置界面（v1.8 新增，Material 3）**：以上全部功能（含五项会员解锁）在模块 App 中按分类提供开关，默认全部开启；开关最长约 1 秒内在新的交互中生效。
 
 不伪造 VIP 状态、不修改购买流程、不拦截业务请求；开屏广告走 App 自带的"跳过/无广告"路径，行为与真实无填充一致；dock 红点只拦截"显示"链路，未读消息数据本身不受影响。第 7 项采用线程级作用域放行：只在对应功能的"交互入口"调用期间让客户端会员判断临时为真，账号数据与网络请求完全保持原样。
 
@@ -79,9 +80,46 @@
 
 > 所有类名/方法名均与 9.2.8 的混淆结果绑定；App 升级后若失效，模块会自动跳过（仅记录日志），不影响 App 运行。
 
+## 设置界面与开关（v1.8）
+
+模块 App（图标：蓝色盾牌）启动即为设置界面，Material 3（API 31+ 自动应用动态取色），结构：
+
+- 「广告与推广」：隐藏各类广告
+- 「我的」页净化：会员促销横幅、VIP 客服按钮、dock 栏红点、升级弹窗
+- 交互增强：装备 tab 防误触
+- 会员权益本地解锁：图片水印、DIY首页、头像挂件、专属样式、个性化分享
+- 「使用说明」卡片
+
+**开关 ↔ 功能 ↔ 偏好 key 对照：**
+
+| 开关 | 偏好 key（`settings.xml`） | Hook |
+|---|---|---|
+| 隐藏各类广告 | `ads` | `AdsHook` 全部拦截点 |
+| 隐藏会员促销横幅 | `vip_banner` | `VipBannerHook`（`rlVip` + 空档压缩） |
+| 隐藏 VIP 客服按钮 | `vip_service` | `VipBannerHook`（`btnCustomerService`） |
+| 屏蔽 dock 栏红点 | `dock_badge` | `DockBadgeHook` |
+| 屏蔽升级弹窗 | `upgrade_dialog` | `UpgradeDialogHook` |
+| 装备 tab 防误触 | `equipment_confirm` | `EquipmentTabHook` |
+| 图片水印 | `vip_watermark` | `VipGateUnlockHook`（水印入口） |
+| DIY首页 | `vip_diy_home` | `VipGateUnlockHook`（入口 + 地图启动生效） |
+| 头像挂件 | `vip_pendant` | `VipGateUnlockHook`（item 点击 + 立即装扮 + 选择权限） |
+| 专属样式 | `vip_style` | `VipGateUnlockHook`（皮肤可用性/入口 + 桌面图标点击） |
+| 个性化分享 | `vip_share` | `VipGateUnlockHook`（保存 + 横幅） |
+
+**实现机制**（模块进程 ↔ 两步路进程）：
+
+- 设置界面：普通 `SharedPreferences("settings")` 读写（`Prefs.ui()`），首次打开写入全部默认值 `true`；
+- Hook 进程：`XSharedPreferences(com.sumver.tbulu, "settings")` 只读同一文件（`Prefs.isEnabled()`），
+  以 1 秒为冷却周期、用 `hasFileChanged()` 检测变化后 `reload()`；
+- 默认策略：未配置 / 读取失败 / 从未打开设置界面 → 全部按 `true`（即 v1.7 的原行为）；
+- 作用域放行采用线程级深度计数 + 决策栈（before 入栈、after 出栈），保证开关在调用中途被改也不产生深度错配。
+
+> 注：XSharedPreferences 依赖 LSPosed 的偏好文件访问支持（各主流 LSPosed 版本均可用）；
+> 极端环境下若读不到文件，开关将按"全部开启"处理。
+
 ## 构建
 
-需要 Android SDK（`local.properties` 中已指向本机 SDK）与 JDK 17+。
+需要 Android SDK（`local.properties` 中已指向本机 SDK）与 JDK 17+；设置界面依赖 Material Components（`com.google.android.material:material`，因此 `gradle.properties` 需 `android.useAndroidX=true`）。
 
 ```bat
 :: 在项目根目录（含 settings.gradle 的目录）执行：
@@ -101,7 +139,8 @@ adb install -r app\build\outputs\apk\debug\app-debug.apk
 
 1. LSPosed 管理器中启用"两步路去广告"；
 2. **作用域只勾选** `两步路`（com.lolaage.tbulu.tools）；
-3. 强制停止两步路后重新打开。
+3. 强制停止两步路后重新打开；
+4. 需要调整功能时，打开模块 App（蓝色盾牌图标）在设置界面里开关即可，改动最长约 1 秒后生效。
 
 ## 验证
 
@@ -114,6 +153,8 @@ adb install -r app\build\outputs\apk\debug\app-debug.apk
   - v1.6：`VipGateUnlockHook: member-check singleton hooked (o00OOOOo.OooO0O0)` 及 `scoped/hooked ...` 系列；触发对应功能时出现（每个 key 仅首次）
     `bypass OooOooO -> true (scoped)` / `bypass SetPendantActivity.Oooo0O0 -> true` / `bypass SkinInfo.isCanUse -> true`
   - v1.7：`scoped PendantListFragment$mAdapter$2$1$convert$1$1.invoke (pendant item click)`、`scoped ChangeAppLogoActivity$mAdapter$2$OooO00o.OooOo00 (app logo item click)`
+  - v1.8：打开模块 App（蓝色盾牌）可见 Material 3 设置界面；切换任一开关，模块进程 logcat 出现 `settings: <key> -> <true|false>`；
+    两步路侧在最长约 1 秒后的新交互中按新开关生效（例：关闭「隐藏各类广告」后开屏/信息流广告恢复显示）。
 - 界面验证：
   - 冷启动无开屏广告，直接进主界面；
   - "我的"页顶部无会员促销横幅；
@@ -124,7 +165,10 @@ adb install -r app\build\outputs\apk\debug\app-debug.apk
     - 头像挂件页：点击任意挂件不再弹开通窗（v1.7），"立即装扮"直接生效；
     - "更多设置 → 记录/导航时皮肤"或记录页设置弹窗：可进入皮肤页并应用任意皮肤；
     - "更多设置 → 变更手机桌面两步路图标"：点击任意图标不再弹开通窗（v1.7），图标直接切换；
-    - 运动记录分享页：可保存带高级数据的分享图，且不显示"加入两步路VIP/SVIP会员"横幅。
+    - 运动记录分享页：可保存带高级数据的分享图，且不显示"加入两步路VIP/SVIP会员"横幅；
+  - v1.8 开关联动（任选两项验证）：
+    - 模块界面关闭「隐藏会员促销横幅」→ 重进"我的"页，横幅恢复显示（位置与未装模块一致）；
+    - 模块界面开关「头像挂件」→ 打开挂件页点挂件：关闭时恢复开通弹窗，开启时直接选中。
 
 ## 已知限制
 
@@ -133,4 +177,4 @@ adb install -r app\build\outputs\apk\debug\app-debug.apk
 - 未处理"看广告换权益"类功能（本版本未见）。
 - v1.6/v1.7 会员门控解锁只针对**客户端本地判断**：皮肤清单、挂件清单、分享图背景/水印字段等仍由服务端下发，本模块不制造服务端数据；挂件保存走 `UserAPI.updateUserInfo` 提交，最终展示以服务端为准（非会员账号若被服务端另有约束，本模块不处理）。
 - v1.6/v1.7 不修改账号 VIP 状态：头像/昵称的会员标识、会员权益介绍页（H5）等仍按真实账号状态展示。
-- 各项解锁随模块自动生效，无独立开关（与模块原有风格一致）。
+- 各项解锁随模块自动生效，但 v1.8 起**全部功能均有独立开关**（模块设置界面，默认开启）；开关最长约 1 秒内生效。XSharedPreferences 读取失败时按"全部开启"回退（即行为与 v1.7 一致）。

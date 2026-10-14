@@ -1,0 +1,22 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 盾牌：去广告 / 净化 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,24 L78,33 L78,55 C78,70.5 68.5,81.5 54,88 C39.5,81.5 30,70.5 30,55 L30,33 Z" />
+    <!-- 盾内轨迹线 + 两端点位（两步路） -->
+    <path
+        android:pathData="M43,66 C51,58 56,66 65,52"
+        android:strokeColor="#0B57D0"
+        android:strokeLineCap="round"
+        android:strokeWidth="4.5" />
+    <path
+        android:fillColor="#0B57D0"
+        android:pathData="M43,62.5 m-3.5,0 a3.5,3.5 0 1,0 7,0 a3.5,3.5 0 1,0 -7,0" />
+    <path
+        android:fillColor="#0B57D0"
+        android:pathData="M65,48.5 m-3.5,0 a3.5,3.5 0 1,0 7,0 a3.5,3.5 0 1,0 -7,0" />
+</vector>

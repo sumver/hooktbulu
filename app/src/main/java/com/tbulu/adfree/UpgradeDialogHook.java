@@ -19,6 +19,8 @@ import de.robv.android.xposed.XposedHelpers;
  *
  * 处理：两个入口直接跳过。自动版本检测逻辑本身不动（不修改功能），
  * 仅不再弹出任何升级窗口；手动检查在"已是最新"时仍有 toast 提示。
+ *
+ * 开关：受设置界面「屏蔽升级弹窗」({@link Prefs#K_UPGRADE}) 控制，默认开启。
  */
 final class UpgradeDialogHook {
 
@@ -28,6 +30,11 @@ final class UpgradeDialogHook {
     private UpgradeDialogHook() {
     }
 
+    /** 设置开关：屏蔽升级弹窗（默认开启）。 */
+    private static boolean enabled() {
+        return Prefs.isEnabled(Prefs.K_UPGRADE);
+    }
+
     static void install(ClassLoader cl) {
         // 1) UpgradeInfoDialog 唯一展示入口
         Class<?> manager = findClassSafe(cl, UPGRADE_MANAGER);
@@ -35,6 +42,9 @@ final class UpgradeDialogHook {
             hookAllSafe(manager, "OooOOOo", new XC_MethodHook() {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam param) {
+                    if (!enabled()) {
+                        return;
+                    }
                     XposedInit.log("upgrade dialog (UpgradeInfoDialog) blocked");
                     param.setResult(null);
                 }
@@ -47,6 +57,9 @@ final class UpgradeDialogHook {
             hookAllSafe(fragment, "o0000oo0", new XC_MethodHook() {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam param) {
+                    if (!enabled()) {
+                        return;
+                    }
                     XposedInit.log("update tips dialog (UpdateTipsDialog) blocked");
                     param.setResult(null);
                 }

@@ -1,5 +1,6 @@
 package com.tbulu.adfree;
 
+import java.util.ArrayDeque;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -8,7 +9,7 @@ import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 
 /**
- * 会员权益"本地门控"解锁（两步路 9.2.8，v1.6 新增）。
+ * 会员权益"本地门控"解锁（两步路 9.2.8，v1.6 新增，v1.8 起接入分类开关）。
  *
  * 背景（smali/JADX 核实）：
  *   App 的"我是不是会员"客户端判断集中在单例 o00OOOOo.OooO0O0：
@@ -23,13 +24,17 @@ import de.robv.android.xposed.XposedHelpers;
  *     即解除客户端拦截，服务端数据/校验完全保持原样；
  *   - 皮肤/挂件/分享图等"内容数据"仍来自服务端下发，本 Hook 只能解锁本地门控。
  *
+ * 开关（设置界面「会员权益本地解锁」分组，默认开启）：
+ *   图片水印 → K_VIP_WATERMARK；DIY首页 → K_VIP_DIY_HOME；头像挂件 → K_VIP_PENDANT；
+ *   专属样式 → K_VIP_STYLE；个性化分享 → K_VIP_SHARE。
+ *   对应开关关闭时，其交互入口不再进入作用域，行为回到未解锁状态。
+ *
  * 五项权益对应处理：
  *   1) 图片水印      RecordPictureOrVideoActivity.o0000O()
  *                    条件：SpUtils.Oooo0o()>0 || !开关 || 会员 → 否则 showNeedVip。
- *                    作用域内会员判断为真 → 拍照直接带水印。
- *   2) DIY首页       MoreSettingsActivity.onClick（"启动后默认界面"入口）+ 
+ *   2) DIY首页       MoreSettingsActivity.onClick（"启动后默认界面"入口）+
  *                    MainActivity.onFirstResume（把地图设为首页后的自动跳转生效）。
- *   3) 个性化形象    SetPendantActivity.onClick（"立即装扮"按钮）+ 
+ *   3) 个性化形象    SetPendantActivity.onClick（"立即装扮"按钮）+
  *                    SetPendantActivity.Oooo0O0(int)（挂件选择权限：1=VIP/2=SVIP）+
  *                    PendantListFragment$mAdapter$2$1$convert$1$1.invoke（挂件 item 点击监听：
  *                    锁定挂件本来会在此弹 VipGuideDialog）。
@@ -60,6 +65,15 @@ final class VipGateUnlockHook {
         }
     };
 
+    /** 每个包装方法调用的"本次是否进入作用域"决策栈（before 入栈 / after 出栈）。 */
+    private static final ThreadLocal<ArrayDeque<Boolean>> sScopeStack =
+            new ThreadLocal<ArrayDeque<Boolean>>() {
+                @Override
+                protected ArrayDeque<Boolean> initialValue() {
+                    return new ArrayDeque<>();
+                }
+            };
+
     /** 已记录过的解锁日志 key（避免刷屏）。 */
     private static final Set<String> sLogged = ConcurrentHashMap.newKeySet();
 
@@ -78,33 +92,33 @@ final class VipGateUnlockHook {
             return; // 所有解锁都依赖该单例，找不到就整体跳过
         }
 
-        // 2) 各权益交互入口：调用期间打开作用域
+        // 2) 各权益交互入口：调用期间按开关打开作用域
         wrapScope(cl, "com.lolaage.tbulu.tools.ui.activity.settings.MoreSettingsActivity",
-                "onClick", "diy-home/skin entry");
+                "onClick", "diy-home/skin entry", Prefs.K_VIP_DIY_HOME, Prefs.K_VIP_STYLE);
         wrapScope(cl, "com.lolaage.tbulu.tools.ui.activity.main.MainActivity",
-                "onFirstResume", "diy-home map as start page");
+                "onFirstResume", "diy-home map as start page", Prefs.K_VIP_DIY_HOME);
         wrapScope(cl, "com.lolaage.tbulu.tools.ui.activity.RecordPictureOrVideoActivity",
-                "o0000O", "camera watermark");
+                "o0000O", "camera watermark", Prefs.K_VIP_WATERMARK);
         wrapScope(cl, "com.lolaage.tbulu.tools.ui.activity.SetPendantActivity",
-                "onClick", "pendant dress-up");
+                "onClick", "pendant dress-up", Prefs.K_VIP_PENDANT);
         // 挂件列表 item 点击（adapter 内联点击监听：锁定挂件在此弹 VipGuideDialog）
         wrapScope(cl, "com.lolaage.tbulu.tools.ui.activity.PendantListFragment$mAdapter$2$1$convert$1$1",
-                "invoke", "pendant item click");
+                "invoke", "pendant item click", Prefs.K_VIP_PENDANT);
         // 桌面图标点击（ChangeAppLogoActivity 内联点击监听：type 1=VIP / 3=SVIP）
         wrapScope(cl, "com.lolaage.tbulu.tools.ChangeAppLogoActivity$mAdapter$2$OooO00o",
-                "OooOo00", "app logo item click");
+                "OooOo00", "app logo item click", Prefs.K_VIP_STYLE);
         wrapScope(cl, "com.lolaage.tbulu.tools.ui.views.SportShareAdvancedDataView",
-                "OooOOo0", "share advanced data save");
+                "OooOOo0", "share advanced data save", Prefs.K_VIP_SHARE);
         wrapScope(cl, "com.lolaage.tbulu.tools.ui.views.SportShareAdvancedDataView",
-                "OooOo00", "share vip banner");
+                "OooOo00", "share vip banner", Prefs.K_VIP_SHARE);
         wrapScope(cl, "com.lolaage.tbulu.tools.ui.dialog.TrackSetUpDialog",
-                "onClick", "record skin entry");
+                "onClick", "record skin entry", Prefs.K_VIP_STYLE);
 
-        // 3) 独立门控（仅对应功能类内部使用，直接放行）
+        // 3) 独立门控（仅对应功能类内部使用，按开关直接放行）
         hookAlwaysTrue(cl, "com.lolaage.tbulu.domain.SkinInfo",
-                "isCanUse", "skin isCanUse");
+                "isCanUse", "skin isCanUse", Prefs.K_VIP_STYLE);
         hookAlwaysTrue(cl, "com.lolaage.tbulu.tools.ui.activity.SetPendantActivity",
-                "Oooo0O0", "pendant selection permission");
+                "Oooo0O0", "pendant selection permission", Prefs.K_VIP_PENDANT);
 
         XposedInit.log("VipGateUnlockHook installed.");
     }
@@ -139,18 +153,31 @@ final class VipGateUnlockHook {
     // 作用域包装 / 直接置真
     // ------------------------------------------------------------------
 
-    private static void wrapScope(ClassLoader cl, String className, String method, String label) {
+    /**
+     * 包装一个"交互入口"方法：方法执行期间打开作用域（会员判断临时为真）。
+     * 仅当 {@code keys} 中任一开关开启时进入；before/after 通过线程级决策栈配对，
+     * 避免"进入时开着、退出时关了"造成的深度错配。
+     */
+    private static void wrapScope(ClassLoader cl, String className, String method, String label,
+                                  final String... keys) {
         try {
             Class<?> cls = XposedHelpers.findClass(className, cl);
             XposedBridge.hookAllMethods(cls, method, new XC_MethodHook() {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam param) {
-                    enterScope();
+                    boolean enter = anyEnabled(keys);
+                    sScopeStack.get().push(enter);
+                    if (enter) {
+                        enterScope();
+                    }
                 }
 
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) {
-                    exitScope();
+                    Boolean enter = sScopeStack.get().poll();
+                    if (Boolean.TRUE.equals(enter)) {
+                        exitScope();
+                    }
                 }
             });
             XposedInit.log("VipGateUnlockHook: scoped " + cls.getSimpleName() + "." + method
@@ -160,13 +187,14 @@ final class VipGateUnlockHook {
         }
     }
 
-    private static void hookAlwaysTrue(ClassLoader cl, String className, String method, String label) {
+    private static void hookAlwaysTrue(ClassLoader cl, String className, String method, String label,
+                                       final String key) {
         try {
             Class<?> cls = XposedHelpers.findClass(className, cl);
             XposedBridge.hookAllMethods(cls, method, new XC_MethodHook() {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) {
-                    if (param.getThrowable() != null) {
+                    if (param.getThrowable() != null || !Prefs.isEnabled(key)) {
                         return;
                     }
                     Object result = param.getResult();
@@ -187,6 +215,15 @@ final class VipGateUnlockHook {
     // ------------------------------------------------------------------
     // 作用域工具
     // ------------------------------------------------------------------
+
+    private static boolean anyEnabled(String[] keys) {
+        for (String key : keys) {
+            if (Prefs.isEnabled(key)) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     private static void enterScope() {
         sScopeDepth.set(sScopeDepth.get() + 1);
