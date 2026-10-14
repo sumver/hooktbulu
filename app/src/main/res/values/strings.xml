@@ -2,7 +2,7 @@
     <string name="app_name">两步路去广告</string>
     <string name="xposed_description">去除两步路那病毒式的广告，解锁部分会员功能（皮肤、图标、进阶数据图、挂件等）</string>
 
-    <string name="settings_subtitle">LSPosed 模块 · v%1$s · 目标 两步路 9.2.8</string>
+    <string name="settings_subtitle">当前适配版本：9.2.8</string>
 
     <string name="group_purify">广告净化</string>
     <string name="group_mine">「我的」页净化</string>
