@@ -3,6 +3,8 @@ package com.tbulu.adfree;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
 import android.os.Bundle;
+import android.text.method.LinkMovementMethod;
+import android.text.util.Linkify;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -109,7 +111,7 @@ public class SettingsActivity extends AppCompatActivity {
                         getString(R.string.switch_dock_badge_summary)),
                 new SwitchItem(Prefs.K_UPGRADE,
                         getString(R.string.switch_upgrade),
-                        getString(R.string.switch_upgrade_summary))));
+                        "")));
         groups.put(getString(R.string.group_interact), Arrays.asList(
                 new SwitchItem(Prefs.K_EQUIPMENT,
                         getString(R.string.switch_equipment),
@@ -175,7 +177,11 @@ public class SettingsActivity extends AppCompatActivity {
             MaterialSwitch switchWidget = row.findViewById(R.id.switch_widget);
 
             tvTitle.setText(item.title);
-            tvSummary.setText(item.summary);
+            if (item.summary == null || item.summary.isEmpty()) {
+                tvSummary.setVisibility(View.GONE);
+            } else {
+                tvSummary.setText(item.summary);
+            }
             switchWidget.setChecked(prefs.getBoolean(item.key, true));
             switchWidget.setOnCheckedChangeListener((buttonView, isChecked) -> {
                 prefs.edit().putBoolean(item.key, isChecked).apply();
@@ -224,6 +230,11 @@ public class SettingsActivity extends AppCompatActivity {
                 com.google.android.material.R.attr.colorOnSurfaceVariant));
         hint.setLineSpacing(dp(2), 1f);
         hint.setPadding(dp(16), dp(14), dp(16), dp(14));
+        // 开源地址转成可点击链接（点击用浏览器打开）
+        hint.setMovementMethod(LinkMovementMethod.getInstance());
+        hint.setLinkTextColor(MaterialColors.getColor(hint,
+                com.google.android.material.R.attr.colorPrimary));
+        Linkify.addLinks(hint, Linkify.WEB_URLS);
         card.addView(hint, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 

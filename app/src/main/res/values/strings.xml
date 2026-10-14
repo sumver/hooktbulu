@@ -4,34 +4,33 @@
 
     <string name="settings_subtitle">LSPosed 模块 · v%1$s · 目标 两步路 9.2.8</string>
 
-    <string name="group_purify">广告与推广</string>
+    <string name="group_purify">广告净化</string>
     <string name="group_mine">「我的」页净化</string>
-    <string name="group_interact">交互增强</string>
+    <string name="group_interact">交互优化</string>
     <string name="group_vip">会员权益本地解锁</string>
 
     <string name="switch_ads">隐藏各类广告</string>
     <string name="switch_ads_summary">开屏、信息流、轮播横幅、资讯列表、运动记录页、出游详情、插屏与弹窗广告</string>
     <string name="switch_vip_banner">隐藏会员促销横幅</string>
-    <string name="switch_vip_banner_summary">移除「我的」页开通/续费会员横条，并压缩遗留空档</string>
+    <string name="switch_vip_banner_summary">隐藏VIP开通横幅</string>
     <string name="switch_vip_service">隐藏 VIP 客服按钮</string>
     <string name="switch_vip_service_summary">移除「我的」页顶部「专属客服」入口</string>
     <string name="switch_dock_badge">屏蔽 dock 栏红点</string>
     <string name="switch_dock_badge_summary">底部「我的」图标不再显示未读红点（不影响消息数据本身）</string>
     <string name="switch_upgrade">屏蔽升级弹窗</string>
-    <string name="switch_upgrade_summary">版本详情弹窗与「我的」页更新提示均不再弹出</string>
-    <string name="switch_equipment">装备 tab 防误触</string>
+    <string name="switch_equipment">装备（商城）tab防误触</string>
     <string name="switch_equipment_summary">点击底部「装备」先确认「是否打开商城？」</string>
     <string name="switch_watermark">图片水印</string>
-    <string name="switch_watermark_summary">拍照可直接携带水印（时间 / 地点 / 天气等）</string>
+    <string name="switch_watermark_summary">解锁图片水印</string>
     <string name="switch_diy_home">DIY首页</string>
     <string name="switch_diy_home_summary">可将地图页设为「启动后默认界面」</string>
     <string name="switch_pendant">头像挂件</string>
-    <string name="switch_pendant_summary">任意挂件可直接选中并「立即装扮」</string>
+    <string name="switch_pendant_summary">解锁所有挂件，装饰后可能需要重启一次APP才能完全生效</string>
     <string name="switch_style">专属样式</string>
-    <string name="switch_style_summary">记录 / 导航皮肤与桌面图标直接切换</string>
+    <string name="switch_style_summary">解锁 记录/导航/桌面图标皮肤</string>
     <string name="switch_share">个性化分享</string>
-    <string name="switch_share_summary">可保存带高级数据的分享图，隐藏开通横幅</string>
+    <string name="switch_share_summary">解锁 分享记录-进阶数据</string>
 
     <string name="settings_hint_title">使用说明</string>
-    <string name="settings_hint">开关保存后需重启两步路才生效：在最近任务里划掉两步路（或长按图标 → 应用信息 → 强制停止）后重新打开。\n\n若重启后仍不生效：请确认已在 LSPosed 中启用本模块且作用域只勾选「两步路」，然后回到本界面切换一次任意开关，再重启两步路。\n\n会员权益解锁仅解除客户端会员拦截，不伪造账号 VIP、不拦截网络请求、不影响购买流程；皮肤 / 挂件等素材仍由服务端下发。</string>
+    <string name="settings_hint">修改设置后，重启两步路APP后生效\n\n如果没有生效，请确保已在LSPosed里启用本模块且作用域勾选了“两步路”APP，然后回到本界面切换一次任意开关，再重启两步路。\n\n本模块开源地址：https://github.com/sumver/hooktbulu\n失效、BUG等前往以上项目提issue。</string>
 </resources>
