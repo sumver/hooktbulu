@@ -3,6 +3,7 @@ package com.tbulu.adfree;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -178,7 +179,9 @@ public class SettingsActivity extends AppCompatActivity {
             switchWidget.setChecked(prefs.getBoolean(item.key, true));
             switchWidget.setOnCheckedChangeListener((buttonView, isChecked) -> {
                 prefs.edit().putBoolean(item.key, isChecked).apply();
-                XposedInit.log("settings: " + item.key + " -> " + isChecked);
+                // 注意：这里不能用 XposedInit.log —— 模块 App 进程里没有 Xposed API 类
+                // （de.robv.android.xposed.* 为 compileOnly），引用会导致 NoClassDefFoundError。
+                Log.i("TbuluAdFree", "settings: " + item.key + " -> " + isChecked);
             });
             row.setOnClickListener(v -> switchWidget.toggle());
             cardInner.addView(row);
