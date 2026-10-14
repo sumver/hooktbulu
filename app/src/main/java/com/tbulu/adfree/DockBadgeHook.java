@@ -18,6 +18,8 @@ import de.robv.android.xposed.XposedHelpers;
  * 处理原则：只拦"显示红点"这条路，不改动未读消息数据本身，
  * 因此消息中心 / 聊天列表里的未读状态不受影响。
  *
+ * 开关：受设置界面「屏蔽 dock 栏红点」({@link Prefs#K_DOCK_BADGE}) 控制，默认开启。
+ *
  * 多层保险（任一层生效即可）：
  *   1) SpaceTabView.OooOO0O：visible 参数强制 false（走 App 自带的隐藏分支）
  *   2) TabGuideDelegate.OooOOoo：直接跳过（不再记录/触发红点状态）
@@ -35,6 +37,11 @@ final class DockBadgeHook {
     private DockBadgeHook() {
     }
 
+    /** 设置开关：屏蔽 dock 栏红点（默认开启）。 */
+    private static boolean enabled() {
+        return Prefs.isEnabled(Prefs.K_DOCK_BADGE);
+    }
+
     static void install(ClassLoader cl) {
         // 1) dock 红点渲染回调：tab(0) / count(1) / color(2) / visible(3)
         Class<?> spaceTabView = findClassSafe(cl, SPACE_TAB_VIEW);
@@ -42,6 +49,9 @@ final class DockBadgeHook {
             hookAllSafe(spaceTabView, "OooOO0O", new XC_MethodHook() {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam param) {
+                    if (!enabled()) {
+                        return;
+                    }
                     if (param.args.length == 4
                             && param.args[3] instanceof Boolean
                             && param.args[1] instanceof Integer) {
@@ -58,7 +68,9 @@ final class DockBadgeHook {
             hookAllSafe(delegate, "OooOOoo", new XC_MethodHook() {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam param) {
-                    param.setResult(null);
+                    if (enabled()) {
+                        param.setResult(null);
+                    }
                 }
             });
         }
@@ -69,7 +81,9 @@ final class DockBadgeHook {
             hookAllSafe(navView, "Oooo0oo", new XC_MethodHook() {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam param) {
-                    param.setResult(null);
+                    if (enabled()) {
+                        param.setResult(null);
+                    }
                 }
             });
         }

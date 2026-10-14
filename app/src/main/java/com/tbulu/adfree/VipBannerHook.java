@@ -27,6 +27,8 @@ import de.robv.android.xposed.XposedHelpers;
  *  1) hook 我的页 Fragment 的 o000OOo0 / OooOo0 / onResume / onHiddenChanged 之后，把目标控件置 GONE；
  *  2) 全局 View.setVisibility 守卫：任何对目标 id 的可见性设置都被改写为 GONE；
  *  资源 id 全部通过 getIdentifier 运行时解析，避免版本间资源编号变化。
+ *
+ * 开关：横幅 / 空档压缩受 {@link Prefs#K_VIP_BANNER}，客服按钮受 {@link Prefs#K_VIP_SERVICE} 控制，默认开启。
  */
 final class VipBannerHook {
 
@@ -91,8 +93,11 @@ final class VipBannerHook {
                 if (param.thisObject instanceof View) {
                     View v = (View) param.thisObject;
                     int id = v.getId();
-                    if (id != 0 && isHiddenId(id)) {
-                        param.args[0] = View.GONE;
+                    if (id != 0) {
+                        String key = keyForId(id);
+                        if (key != null && Prefs.isEnabled(key)) {
+                            param.args[0] = View.GONE;
+                        }
                     }
                 }
             }
@@ -119,6 +124,10 @@ final class VipBannerHook {
             }
             View root = (View) viewObj;
             for (String name : HIDDEN_ID_NAMES) {
+                String key = keyForName(name);
+                if (!Prefs.isEnabled(key)) {
+                    continue;
+                }
                 int id = resolveId(name);
                 if (id == 0) {
                     continue;
@@ -149,6 +158,9 @@ final class VipBannerHook {
      * 面板绝对位置保持不变（底边仍在 192dp），下方宫格上移 50dp。
      */
     private static void compactHeaderSpace(View root) {
+        if (!Prefs.isEnabled(Prefs.K_VIP_BANNER)) {
+            return;
+        }
         try {
             // 1) account_part 高度 252dp -> 202dp
             int idAccountPart = resolveId("account_part");
@@ -211,14 +223,20 @@ final class VipBannerHook {
         }
     }
 
-    private static boolean isHiddenId(int id) {
+    /** 控件名 → 开关 key。 */
+    private static String keyForName(String name) {
+        return "btnCustomerService".equals(name) ? Prefs.K_VIP_SERVICE : Prefs.K_VIP_BANNER;
+    }
+
+    /** 资源 id → 开关 key（不属于隐藏清单时返回 null）。 */
+    private static String keyForId(int id) {
         for (String name : HIDDEN_ID_NAMES) {
             int target = resolveId(name);
             if (target != 0 && target == id) {
-                return true;
+                return keyForName(name);
             }
         }
-        return false;
+        return null;
     }
 
     /** 运行时解析资源 id（成功后缓存；Application 未就绪时下次重试）。 */

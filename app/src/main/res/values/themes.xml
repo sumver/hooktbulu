@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- MD3 基础主题：API 31+ 会在 SettingsActivity 中应用动态取色（DynamicColors） -->
+    <style name="Theme.TbuluAdFree" parent="Theme.Material3.DayNight.NoActionBar" />
+</resources>
