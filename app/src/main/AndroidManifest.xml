@@ -28,6 +28,12 @@
         <meta-data
             android:name="xposedminversion"
             android:value="82" />
+        <!-- 启用 LSPosed「New XSharedPreferences」：偏好文件写入 LSPosed 代理目录，
+             Hook 侧（两步路进程）才能读取开关配置。缺此声明时 XSharedPreferences 只会
+             去读 /data/data/<模块>/shared_prefs/（跨应用不可读），开关将永远不生效。 -->
+        <meta-data
+            android:name="xposedsharedprefs"
+            android:value="true" />
         <meta-data
             android:name="xposedscope"
             android:resource="@array/xposed_scope" />

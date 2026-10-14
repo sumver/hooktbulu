@@ -1,6 +1,6 @@
 # 两步路去广告（TbuluAdFree）
 
-> 模块版本：**v1.10**（git tag `v1.10`；模块包名 `com.sumver.tbulu`；版本号对应 `app/build.gradle` 的 versionName）
+> 模块版本：**v1.11**（git tag `v1.11`；模块包名 `com.sumver.tbulu`；版本号对应 `app/build.gradle` 的 versionName）
 
 针对 **两步路 App**（`com.lolaage.tbulu.tools`，目标版本 **9.2.8 / versionCode 1652**）的 LSPosed / EdXposed 模块。
 
@@ -108,19 +108,23 @@
 
 **实现机制**（模块进程 ↔ 两步路进程，遵循 LSPosed 官方「New XSharedPreferences」协议）：
 
+- **模块 Manifest 声明 `<meta-data android:name="xposedsharedprefs" android:value="true"/>`**（v1.11 补上，关键）——
+  LSPosed 1.9.2 源码 `de.robv.android.xposed.XSharedPreferences` 据此把读取路径切到
+  `serviceClient.getPrefsPath(packageName)` 的 **LSPosed 代理目录**；
+  缺此声明（且 xposedminversion ≤ 92）时只会去读 `/data/data/<模块>/shared_prefs/`，跨应用不可读，开关永远不生效；
 - 设置界面：用 `Context.MODE_WORLD_READABLE` 打开 `SharedPreferences("settings")`（`Prefs.ui()`）——
-  LSPosed 会放行该模式并让 Hook 进程可读；非 LSPosed 环境会抛 `SecurityException`，回退 `MODE_PRIVATE`（仅本进程可读）。
+  LSPosed 拦截该模式并把文件读写重定向到代理目录；非 LSPosed 环境会抛 `SecurityException`，回退 `MODE_PRIVATE`。
   首次打开写入全部默认值 `true`；
-- Hook 进程：`XSharedPreferences(com.sumver.tbulu, "settings")` 只读同一文件，
-  使用前检查 `getFile().canRead()`（官方推荐做法），并在 `XposedInit.handleLoadPackage` 启动时预读；
+- Hook 进程：`XSharedPreferences(com.sumver.tbulu, "settings")` 只读代理目录中的同一份文件，
+  使用前检查 `getFile().canRead()`；并在 `XposedInit.handleLoadPackage` 启动时预读（`Prefs.prime()`）；
 - 读取策略：**每个进程启动后只读一次并缓存**（`Prefs.isEnabled()`）——
   开关修改后必须强制停止并重新打开两步路才生效（刻意设计，不做运行中实时生效，避免状态错乱）；
 - 默认策略：未配置 / 读取失败 / 从未打开设置界面 → 全部按 `true`（即 v1.7 的原行为），并输出明确错误日志；
 - 作用域放行采用线程级深度计数 + 决策栈（before 入栈、after 出栈），保证配对不出错。
 
-> 注：若日志出现 `Prefs: settings unreadable`，说明偏好文件还没被 LSPosed 标记为可读：
-> 先打开一次模块设置界面并切换一次任意开关（触发重写与授权），再强制停止两步路后重新打开即可。
-> 若持续如此，请确认 LSPosed 版本支持「New XSharedPreferences」（主流 1.6+ 版本默认支持）。
+> 注：若日志出现 `Prefs: settings unreadable`，说明 Hook 侧仍没读到代理目录：
+> 先打开一次模块设置界面（触发代理目录写入），再强制停止两步路后重新打开；
+> 并确认模块 APK 里带有 `xposedsharedprefs` 元数据（v1.11 起已内置）。
 >
 > 日志：设置界面进程写入 `android.util.Log`（tag `TbuluAdFree`，见 logcat）；
 > Hook（两步路）进程仍走 `XposedBridge.log`（LSPosed 日志）。两边故意分开——
