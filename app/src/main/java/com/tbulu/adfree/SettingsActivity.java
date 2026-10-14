@@ -59,21 +59,14 @@ public class SettingsActivity extends AppCompatActivity {
         setContentView(R.layout.activity_settings);
 
         MaterialToolbar toolbar = findViewById(R.id.toolbar);
-        toolbar.setSubtitle(getString(R.string.settings_subtitle, versionName()));
+        toolbar.setTitle(R.string.app_name);
+        toolbar.setSubtitle(R.string.settings_subtitle);
 
         prefs = Prefs.ui(this);
         seedDefaults();
 
         container = findViewById(R.id.container);
         buildContent();
-    }
-
-    private String versionName() {
-        try {
-            return getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
-        } catch (Throwable ignored) {
-            return "";
-        }
     }
 
     /** 首次打开时写入全部默认值（true），保证 Hook 进程总能读到完整配置。 */
