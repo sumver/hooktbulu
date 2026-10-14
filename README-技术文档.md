@@ -1,6 +1,6 @@
 # 两步路去广告（TbuluAdFree）
 
-> 模块版本：**v1.8**（git tag `v1.8`；模块包名 `com.sumver.tbulu`；版本号对应 `app/build.gradle` 的 versionName）
+> 模块版本：**v1.9**（git tag `v1.9`；模块包名 `com.sumver.tbulu`；版本号对应 `app/build.gradle` 的 versionName）
 
 针对 **两步路 App**（`com.lolaage.tbulu.tools`，目标版本 **9.2.8 / versionCode 1652**）的 LSPosed / EdXposed 模块。
 
@@ -116,6 +116,10 @@
 
 > 注：XSharedPreferences 依赖 LSPosed 的偏好文件访问支持（各主流 LSPosed 版本均可用）；
 > 极端环境下若读不到文件，开关将按"全部开启"处理。
+>
+> 日志：设置界面进程写入 `android.util.Log`（tag `TbuluAdFree`，见 logcat）；
+> Hook（两步路）进程仍走 `XposedBridge.log`（LSPosed 日志）。两边故意分开——
+> 模块 App 进程没有 Xposed API 类（`compileOnly`），引用 `XposedInit` 会导致类加载失败。
 
 ## 构建
 
