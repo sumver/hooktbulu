@@ -12,8 +12,9 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam;
  * LSPosed / EdXposed 模块入口。
  *
  * 目标：com.lolaage.tbulu.tools（两步路）v9.2.8 (versionCode 1652)
- * 作用：隐藏信息流/列表/详情页的广告位，以及"我的"页的会员促销横幅。
- *       不改变业务逻辑（不伪造 VIP 状态、不动购买流程）。
+ * 作用：隐藏信息流/列表/详情页的广告位、"我的"页的会员促销横幅；
+ *       v1.6 起新增"会员本地门控解锁"（DIY首页/图片水印/头像挂件/专属样式/个性化分享）。
+ *       不伪造账号 VIP 状态、不拦截网络请求、不动购买流程（详见各 Hook 类注释）。
  */
 public class XposedInit implements IXposedHookLoadPackage {
 
@@ -39,6 +40,11 @@ public class XposedInit implements IXposedHookLoadPackage {
             VipBannerHook.install(lpparam.classLoader);
         } catch (Throwable t) {
             log("VipBannerHook install failed: " + t);
+        }
+        try {
+            VipGateUnlockHook.install(lpparam.classLoader);
+        } catch (Throwable t) {
+            log("VipGateUnlockHook install failed: " + t);
         }
         try {
             DockBadgeHook.install(lpparam.classLoader);
