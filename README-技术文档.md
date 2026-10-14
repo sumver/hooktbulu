@@ -1,6 +1,6 @@
 # 两步路去广告（TbuluAdFree）
 
-> 模块版本：**v1.9**（git tag `v1.9`；模块包名 `com.sumver.tbulu`；版本号对应 `app/build.gradle` 的 versionName）
+> 模块版本：**v1.10**（git tag `v1.10`；模块包名 `com.sumver.tbulu`；版本号对应 `app/build.gradle` 的 versionName）
 
 针对 **两步路 App**（`com.lolaage.tbulu.tools`，目标版本 **9.2.8 / versionCode 1652**）的 LSPosed / EdXposed 模块。
 
@@ -13,7 +13,7 @@
 5. **装备 tab 防误触**：点击底部 dock 的"装备"（我的左边）不再直接跳商城，先弹窗确认"是否打开商城？"，点"否"保持原样，点"是"再跳转。
 6. **屏蔽升级弹窗**：App 检测到新版本后不再弹窗（版本详情弹窗与"我的"页更新提示弹窗均屏蔽）；自动检测逻辑本身不变。
 7. **解锁五项会员权益的本地门控**（v1.6 新增）：图片水印、DIY首页（把地图设为启动界面）、头像挂件、记录/导航皮肤、个性化分享（高级数据分享图）。仅解除客户端的"需要开通会员"拦截，不伪造账号 VIP 状态、不拦截网络请求、不影响购买流程；皮肤/挂件/分享图等素材与字段仍由服务端下发。
-8. **设置界面（v1.8 新增，Material 3）**：以上全部功能（含五项会员解锁）在模块 App 中按分类提供开关，默认全部开启；开关最长约 1 秒内在新的交互中生效。
+8. **设置界面（v1.8 新增，Material 3；v1.10 起改为重启生效）**：以上全部功能（含五项会员解锁）在模块 App 中按分类提供开关，默认全部开启；修改后需强制停止并重新打开两步路才生效。
 
 不伪造 VIP 状态、不修改购买流程、不拦截业务请求；开屏广告走 App 自带的"跳过/无广告"路径，行为与真实无填充一致；dock 红点只拦截"显示"链路，未读消息数据本身不受影响。第 7 项采用线程级作用域放行：只在对应功能的"交互入口"调用期间让客户端会员判断临时为真，账号数据与网络请求完全保持原样。
 
@@ -106,16 +106,21 @@
 | 专属样式 | `vip_style` | `VipGateUnlockHook`（皮肤可用性/入口 + 桌面图标点击） |
 | 个性化分享 | `vip_share` | `VipGateUnlockHook`（保存 + 横幅） |
 
-**实现机制**（模块进程 ↔ 两步路进程）：
+**实现机制**（模块进程 ↔ 两步路进程，遵循 LSPosed 官方「New XSharedPreferences」协议）：
 
-- 设置界面：普通 `SharedPreferences("settings")` 读写（`Prefs.ui()`），首次打开写入全部默认值 `true`；
-- Hook 进程：`XSharedPreferences(com.sumver.tbulu, "settings")` 只读同一文件（`Prefs.isEnabled()`），
-  以 1 秒为冷却周期、用 `hasFileChanged()` 检测变化后 `reload()`；
-- 默认策略：未配置 / 读取失败 / 从未打开设置界面 → 全部按 `true`（即 v1.7 的原行为）；
-- 作用域放行采用线程级深度计数 + 决策栈（before 入栈、after 出栈），保证开关在调用中途被改也不产生深度错配。
+- 设置界面：用 `Context.MODE_WORLD_READABLE` 打开 `SharedPreferences("settings")`（`Prefs.ui()`）——
+  LSPosed 会放行该模式并让 Hook 进程可读；非 LSPosed 环境会抛 `SecurityException`，回退 `MODE_PRIVATE`（仅本进程可读）。
+  首次打开写入全部默认值 `true`；
+- Hook 进程：`XSharedPreferences(com.sumver.tbulu, "settings")` 只读同一文件，
+  使用前检查 `getFile().canRead()`（官方推荐做法），并在 `XposedInit.handleLoadPackage` 启动时预读；
+- 读取策略：**每个进程启动后只读一次并缓存**（`Prefs.isEnabled()`）——
+  开关修改后必须强制停止并重新打开两步路才生效（刻意设计，不做运行中实时生效，避免状态错乱）；
+- 默认策略：未配置 / 读取失败 / 从未打开设置界面 → 全部按 `true`（即 v1.7 的原行为），并输出明确错误日志；
+- 作用域放行采用线程级深度计数 + 决策栈（before 入栈、after 出栈），保证配对不出错。
 
-> 注：XSharedPreferences 依赖 LSPosed 的偏好文件访问支持（各主流 LSPosed 版本均可用）；
-> 极端环境下若读不到文件，开关将按"全部开启"处理。
+> 注：若日志出现 `Prefs: settings unreadable`，说明偏好文件还没被 LSPosed 标记为可读：
+> 先打开一次模块设置界面并切换一次任意开关（触发重写与授权），再强制停止两步路后重新打开即可。
+> 若持续如此，请确认 LSPosed 版本支持「New XSharedPreferences」（主流 1.6+ 版本默认支持）。
 >
 > 日志：设置界面进程写入 `android.util.Log`（tag `TbuluAdFree`，见 logcat）；
 > Hook（两步路）进程仍走 `XposedBridge.log`（LSPosed 日志）。两边故意分开——
@@ -157,8 +162,9 @@ adb install -r app\build\outputs\apk\debug\app-debug.apk
   - v1.6：`VipGateUnlockHook: member-check singleton hooked (o00OOOOo.OooO0O0)` 及 `scoped/hooked ...` 系列；触发对应功能时出现（每个 key 仅首次）
     `bypass OooOooO -> true (scoped)` / `bypass SetPendantActivity.Oooo0O0 -> true` / `bypass SkinInfo.isCanUse -> true`
   - v1.7：`scoped PendantListFragment$mAdapter$2$1$convert$1$1.invoke (pendant item click)`、`scoped ChangeAppLogoActivity$mAdapter$2$OooO00o.OooOo00 (app logo item click)`
-  - v1.8：打开模块 App（蓝色盾牌）可见 Material 3 设置界面；切换任一开关，模块进程 logcat 出现 `settings: <key> -> <true|false>`；
-    两步路侧在最长约 1 秒后的新交互中按新开关生效（例：关闭「隐藏各类广告」后开屏/信息流广告恢复显示）。
+  - v1.8+：打开模块 App（蓝色盾牌）可见 Material 3 设置界面；切换任一开关，模块进程 logcat 出现 `settings: <key> -> <true|false>`；
+    强制停止并重开两步路后生效：Hook 进程日志应出现 `Prefs: loaded N switches (read once per process; restart target app to apply)`；
+    若出现 `Prefs: settings unreadable ...` 则是偏好文件权限未就绪（按提示先切一次开关再重启）；
 - 界面验证：
   - 冷启动无开屏广告，直接进主界面；
   - "我的"页顶部无会员促销横幅；
@@ -181,4 +187,4 @@ adb install -r app\build\outputs\apk\debug\app-debug.apk
 - 未处理"看广告换权益"类功能（本版本未见）。
 - v1.6/v1.7 会员门控解锁只针对**客户端本地判断**：皮肤清单、挂件清单、分享图背景/水印字段等仍由服务端下发，本模块不制造服务端数据；挂件保存走 `UserAPI.updateUserInfo` 提交，最终展示以服务端为准（非会员账号若被服务端另有约束，本模块不处理）。
 - v1.6/v1.7 不修改账号 VIP 状态：头像/昵称的会员标识、会员权益介绍页（H5）等仍按真实账号状态展示。
-- 各项解锁随模块自动生效，但 v1.8 起**全部功能均有独立开关**（模块设置界面，默认开启）；开关最长约 1 秒内生效。XSharedPreferences 读取失败时按"全部开启"回退（即行为与 v1.7 一致）。
+- v1.8 起全部功能均有独立开关（模块设置界面，默认开启）；v1.10 起改为**重启生效**：修改开关后需强制停止并重新打开两步路（运行中不实时应用）。XSharedPreferences 读取失败时按"全部开启"回退（即行为与 v1.7 一致），并输出错误日志。

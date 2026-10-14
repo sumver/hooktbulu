@@ -2,8 +2,9 @@ package com.tbulu.adfree;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.os.SystemClock;
+import android.util.Log;
 
+import java.io.File;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -13,11 +14,15 @@ import de.robv.android.xposed.XSharedPreferences;
 /**
  * 功能开关配置（模块设置界面 ↔ Hook 进程的桥梁）。
  *
- * 模块 App 进程：普通 {@link SharedPreferences} 读写（{@link #ui}）。
- * Hook（两步路）进程：{@link XSharedPreferences} 只读同一份文件；
- * 以 1 秒为冷却周期，用 {@code hasFileChanged()} 检测变化后 reload；
- * 读取失败时保持上一次快照，且默认值一律为 true —— 保证"从未打开过设置界面"
- * 时行为与加入开关之前完全一致（全部功能开启）。
+ * 读写协议遵循 LSPosed 官方「New XSharedPreferences」：
+ *  - 模块 App 进程：用 {@link Context#MODE_WORLD_READABLE} 打开偏好文件
+ *    （LSPosed 会放行该调用并保证 Hook 进程可读；
+ *    未在 LSPosed 启用/加载的环境会抛 SecurityException，此时回退 MODE_PRIVATE，仅本进程可读）；
+ *  - Hook（两步路）进程：{@link XSharedPreferences} 只读同一文件，
+ *    使用前先检查 {@code getFile().canRead()}（官方推荐做法）；
+ *  - 读取策略：**每个进程启动后只读一次并缓存**。
+ *    因此开关修改后必须重启（强制停止）两步路才会生效 —— 这是刻意设计，避免运行中状态错乱。
+ *  - 读不到文件时回退"全部开启"（与旧版本行为一致），并输出明确错误日志便于排查。
  */
 final class Prefs {
 
@@ -25,6 +30,8 @@ final class Prefs {
     static final String MODULE_PKG = "com.sumver.tbulu";
     /** 设置界面与 Hook 共用同一偏好文件名。 */
     static final String FILE = "settings";
+
+    private static final String LOG_TAG = "TbuluAdFree";
 
     // ---- 开关 key（设置界面 / Hook 共用）----
     /** 隐藏各类广告。 */
@@ -67,45 +74,67 @@ final class Prefs {
         };
     }
 
-    /** Hook 进程读取开关时的最小刷新间隔。 */
-    private static final long TTL_MS = 1000L;
-
-    private static volatile XSharedPreferences sXPrefs;
-    private static volatile Map<String, Boolean> sSnapshot = Collections.emptyMap();
-    private static volatile long sNextRefreshAt;
-    private static volatile boolean sLoggedFailure;
+    /** Hook 进程的配置快照；null = 尚未读取（每个进程只读一次）。 */
+    private static volatile Map<String, Boolean> sSnapshot;
 
     private Prefs() {
     }
 
-    /** 模块 App 进程使用：直接读写设置文件。 */
+    /**
+     * 模块 App 进程使用：读写设置文件。
+     *
+     * 必须优先使用 MODE_WORLD_READABLE —— 这是 LSPosed「New XSharedPreferences」
+     * 的约定：模块以此模式打开后，LSPosed 会让被 Hook 的应用进程能够读取该文件。
+     * 非 LSPosed 环境（或模块未启用）会抛 SecurityException，此时退回 MODE_PRIVATE。
+     */
     static SharedPreferences ui(Context context) {
-        return context.getSharedPreferences(FILE, Context.MODE_PRIVATE);
+        try {
+            return context.getSharedPreferences(FILE, Context.MODE_WORLD_READABLE);
+        } catch (SecurityException e) {
+            Log.w(LOG_TAG, "MODE_WORLD_READABLE not allowed (module not enabled in LSPosed?), "
+                    + "fallback to MODE_PRIVATE; 两步路进程将读不到开关", e);
+            return context.getSharedPreferences(FILE, Context.MODE_PRIVATE);
+        }
     }
 
-    /** Hook 进程使用：开关是否开启（未配置 / 读取失败 = 开启）。 */
+    /**
+     * Hook 进程使用：开关是否开启（未配置 / 读取失败 = 开启）。
+     * 每个进程只在首次调用时读取一次；修改开关需重启目标应用。
+     */
     static boolean isEnabled(String key) {
-        refreshIfNeeded();
-        Boolean value = sSnapshot.get(key);
+        Map<String, Boolean> snapshot = sSnapshot;
+        if (snapshot == null) {
+            synchronized (Prefs.class) {
+                snapshot = sSnapshot;
+                if (snapshot == null) {
+                    snapshot = readOnce();
+                }
+            }
+        }
+        Boolean value = snapshot.get(key);
         return value == null || value;
     }
 
-    private static void refreshIfNeeded() {
-        long now = SystemClock.elapsedRealtime();
-        if (now < sNextRefreshAt) {
-            return;
-        }
-        sNextRefreshAt = now + TTL_MS;
+    /** 供 XposedInit 在进程启动时预读并输出日志（复用同一份快照，不会产生第二次 I/O）。 */
+    static void prime() {
+        isEnabled("__prime__");
+    }
+
+    /** 读取一次并缓存（仅 Hook 进程调用）。 */
+    private static Map<String, Boolean> readOnce() {
+        Map<String, Boolean> snapshot = Collections.emptyMap();
         try {
-            XSharedPreferences x = sXPrefs;
-            if (x == null) {
-                x = new XSharedPreferences(MODULE_PKG, FILE);
-                sXPrefs = x;
-            }
-            if (x.hasFileChanged()) {
+            XSharedPreferences x = new XSharedPreferences(MODULE_PKG, FILE);
+            File file = x.getFile();
+            if (file == null || !file.canRead()) {
+                XposedInit.log("Prefs: settings unreadable ("
+                        + (file == null ? "no file" : file.getAbsolutePath())
+                        + "); 回退为全部开启。请先打开模块设置界面并切换一次开关（触发 LSPosed 重写权限），"
+                        + "再强制停止两步路后重新打开");
+            } else {
                 x.reload();
-                Map<String, Boolean> next = new HashMap<>();
                 Map<String, ?> all = x.getAll();
+                Map<String, Boolean> next = new HashMap<>();
                 if (all != null) {
                     for (Map.Entry<String, ?> entry : all.entrySet()) {
                         Object value = entry.getValue();
@@ -114,13 +143,14 @@ final class Prefs {
                         }
                     }
                 }
-                sSnapshot = next;
+                snapshot = next;
+                XposedInit.log("Prefs: loaded " + next.size()
+                        + " switches (read once per process; restart target app to apply)");
             }
         } catch (Throwable t) {
-            if (!sLoggedFailure) {
-                sLoggedFailure = true;
-                XposedInit.log("Prefs: read settings failed (keep defaults/current): " + t);
-            }
+            XposedInit.log("Prefs: read failed: " + t);
         }
+        sSnapshot = snapshot;
+        return snapshot;
     }
 }

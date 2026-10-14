@@ -33,5 +33,5 @@
     <string name="switch_share_summary">可保存带高级数据的分享图，隐藏开通横幅</string>
 
     <string name="settings_hint_title">使用说明</string>
-    <string name="settings_hint">开关保存后最长约 1 秒内生效；个别页面需退出重进。\n\n首次使用：请在 LSPosed 中启用本模块，并只勾选「两步路」作用域，然后强制停止两步路再打开。\n\n会员权益解锁仅解除客户端会员拦截，不伪造账号 VIP、不拦截网络请求、不影响购买流程；皮肤 / 挂件等素材仍由服务端下发。</string>
+    <string name="settings_hint">开关保存后需重启两步路才生效：在最近任务里划掉两步路（或长按图标 → 应用信息 → 强制停止）后重新打开。\n\n若重启后仍不生效：请确认已在 LSPosed 中启用本模块且作用域只勾选「两步路」，然后回到本界面切换一次任意开关，再重启两步路。\n\n会员权益解锁仅解除客户端会员拦截，不伪造账号 VIP、不拦截网络请求、不影响购买流程；皮肤 / 挂件等素材仍由服务端下发。</string>
 </resources>
