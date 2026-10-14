@@ -30,10 +30,13 @@ import de.robv.android.xposed.XposedHelpers;
  *   2) DIY首页       MoreSettingsActivity.onClick（"启动后默认界面"入口）+ 
  *                    MainActivity.onFirstResume（把地图设为首页后的自动跳转生效）。
  *   3) 个性化形象    SetPendantActivity.onClick（"立即装扮"按钮）+ 
- *                    SetPendantActivity.Oooo0O0(int)（挂件选择权限：1=VIP/2=SVIP）。
+ *                    SetPendantActivity.Oooo0O0(int)（挂件选择权限：1=VIP/2=SVIP）+
+ *                    PendantListFragment$mAdapter$2$1$convert$1$1.invoke（挂件 item 点击监听：
+ *                    锁定挂件本来会在此弹 VipGuideDialog）。
  *   4) 专属样式      SkinInfo.isCanUse()（皮肤可用性：VIP/SVIP 门槛）
- *                    + TrackSetUpDialog.onClick（记录页"记录/导航时皮肤"入口）。
- *                    注：桌面图标更换（ChangeAppLogoActivity）本就无 VIP 校验。
+ *                    + TrackSetUpDialog.onClick（记录页"记录/导航时皮肤"入口）
+ *                    + ChangeAppLogoActivity$mAdapter$2$OooO00o.OooOo00（桌面图标点击：
+ *                      图标自带分档 type 1=VIP / 3=SVIP，点击时校验，放行后走图标应用分支）。
  *   5) 个性化分享    SportShareAdvancedDataView.OooOOo0()（保存带高级数据的分享图）
  *                    + OooOo00()（隐藏"加入VIP/SVIP会员"横幅）。
  *
@@ -84,6 +87,12 @@ final class VipGateUnlockHook {
                 "o0000O", "camera watermark");
         wrapScope(cl, "com.lolaage.tbulu.tools.ui.activity.SetPendantActivity",
                 "onClick", "pendant dress-up");
+        // 挂件列表 item 点击（adapter 内联点击监听：锁定挂件在此弹 VipGuideDialog）
+        wrapScope(cl, "com.lolaage.tbulu.tools.ui.activity.PendantListFragment$mAdapter$2$1$convert$1$1",
+                "invoke", "pendant item click");
+        // 桌面图标点击（ChangeAppLogoActivity 内联点击监听：type 1=VIP / 3=SVIP）
+        wrapScope(cl, "com.lolaage.tbulu.tools.ChangeAppLogoActivity$mAdapter$2$OooO00o",
+                "OooOo00", "app logo item click");
         wrapScope(cl, "com.lolaage.tbulu.tools.ui.views.SportShareAdvancedDataView",
                 "OooOOo0", "share advanced data save");
         wrapScope(cl, "com.lolaage.tbulu.tools.ui.views.SportShareAdvancedDataView",
