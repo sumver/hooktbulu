@@ -37,6 +37,8 @@
     <string name="switch_share_custom_summary">长按「打卡/累计」卡片底部文案可输入自定义内容（不允许为空；App 刷新文案时还原）</string>
     <string name="switch_share_hide_days">隐藏「坚持运动」天数</string>
     <string name="switch_share_hide_days_summary">打卡分享卡隐藏左侧「坚持运动 xx天」，「本次运动 xxxkm」移到左侧（累计卡不受影响）</string>
+    <string name="switch_share_logo">隐藏「两步路」水印</string>
+    <string name="switch_share_logo_summary">「打卡/累计」分享图右上角的「两步路」logo 水印隐藏（预览与保存/分享出的图一致）</string>
 
     <string name="settings_hint_title">使用说明</string>
     <string name="settings_hint">修改设置后，重启两步路APP后生效\n\n如果没有生效，请确保已在LSPosed里启用本模块且作用域勾选了“两步路”APP，然后回到本界面切换一次任意开关，再重启两步路。\n\n本模块开源地址：https://github.com/sumver/hooktbulu\n失效、BUG等前往以上项目提issue。</string>
