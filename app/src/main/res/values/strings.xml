@@ -41,5 +41,5 @@
     <string name="switch_share_logo_summary">隐藏打卡/累计预览图右上角的两步路水印</string>
 
     <string name="settings_hint_title">使用说明</string>
-    <string name="settings_hint">修改设置后，重启两步路APP后生效\n\n如果没有生效，请确保已在LSPosed里启用本模块且作用域勾选了“两步路”APP，然后回到本界面切换一次任意开关，再重启两步路。\n\n本模块开源地址：https://github.com/sumver/hooktbulu\n失效、BUG等前往以上项目提issue。</string>
+    <string name="settings_hint">修改设置后，重启两步路APP后生效\n\n首次使用请先打开一次本界面生成配置文件；如果未生效，请确保已在 LSPosed 里启用本模块且作用域勾选了“两步路”APP，然后重启两步路。\n\n本模块开源地址：https://github.com/sumver/hooktbulu\n失效、BUG等前往以上项目提issue。</string>
 </resources>

@@ -36,6 +36,14 @@ public class XposedInit implements IXposedHookLoadPackage {
 
         log("loaded target: " + lpparam.packageName + " process=" + lpparam.processName);
 
+        // 先触发配置加载（v1.21 起异步、经模块自带只读 ContentProvider 读取，见 Prefs）：
+        // 每个进程只加载一次；开关修改后需重启（强制停止）目标应用才生效
+        try {
+            Prefs.prime();
+        } catch (Throwable t) {
+            log("Prefs prime failed: " + t);
+        }
+
         try {
             VipBannerHook.install(lpparam.classLoader);
         } catch (Throwable t) {
@@ -85,13 +93,6 @@ public class XposedInit implements IXposedHookLoadPackage {
             ShareCardLogoHook.install(lpparam.classLoader);
         } catch (Throwable t) {
             log("ShareCardLogoHook install failed: " + t);
-        }
-
-        // 预读功能开关：每个进程只读一次；开关修改后需重启（强制停止）目标应用才生效
-        try {
-            Prefs.prime();
-        } catch (Throwable t) {
-            log("Prefs prime failed: " + t);
         }
     }
 

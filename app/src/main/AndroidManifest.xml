@@ -26,15 +26,23 @@
         <meta-data
             android:name="xposedminversion"
             android:value="82" />
-        <!-- 启用 LSPosed「New XSharedPreferences」：偏好文件写入 LSPosed 代理目录，
-             Hook 侧（两步路进程）才能读取开关配置。缺此声明时 XSharedPreferences 只会
-             去读 /data/data/<模块>/shared_prefs/（跨应用不可读），开关将永远不生效。 -->
-        <meta-data
-            android:name="xposedsharedprefs"
-            android:value="true" />
+        <!-- v1.21 起不再声明 xposedsharedprefs：LSPosed 的「New XSharedPreferences」
+             已被官方标记废弃（模块页会出现"此模块使用了已废弃且即将移除的功能"警告），
+             计划 2.3.0 正式移除；且非该机制下跨应用直读 /data/data 私有目录不可行。
+             开关配置改由本模块自带的只读 ContentProvider 传递：
+             Hook 侧（两步路进程）查询 content://com.sumver.tbulu.prefs/settings，
+             不依赖任何 LSPosed 私有机制，1.9.x / 2.x 及以后版本通用
+             （见 Prefs / PrefsProvider）。 -->
         <meta-data
             android:name="xposedscope"
             android:resource="@array/xposed_scope" />
+
+        <!-- 只读配置桥：向被 Hook 的应用进程提供开关布尔值（settings 偏好文件的只读视图，
+             无敏感数据；authority 必须与 Prefs.PROVIDER_AUTHORITY 保持一致）。 -->
+        <provider
+            android:name=".PrefsProvider"
+            android:authorities="com.sumver.tbulu.prefs"
+            android:exported="true" />
     </application>
 
 </manifest>
