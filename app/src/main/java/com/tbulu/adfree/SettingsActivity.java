@@ -2,10 +2,12 @@ package com.tbulu.adfree;
 
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
+import android.graphics.Typeface;
 import android.os.Bundle;
 import android.text.method.LinkMovementMethod;
 import android.text.util.Linkify;
 import android.util.Log;
+import android.util.TypedValue;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -35,6 +37,9 @@ import java.util.Map;
  * 开关保存后最长约 1 秒内在新的交互中生效。
  */
 public class SettingsActivity extends AppCompatActivity {
+
+    /** 分组标题字号（sp）：比卡片内标题（Material3 BodyLarge = 16sp）更大。 */
+    private static final float GROUP_HEADER_SP = 18f;
 
     /** 单个开关项。 */
     private static final class SwitchItem {
@@ -69,13 +74,13 @@ public class SettingsActivity extends AppCompatActivity {
         buildContent();
     }
 
-    /** 首次打开时写入全部默认值（true），保证 Hook 进程总能读到完整配置。 */
+    /** 首次打开时写入全部默认值（普通开关 true；「隐藏坚持运动天数」等默认关闭项 false）。 */
     private void seedDefaults() {
         SharedPreferences.Editor editor = prefs.edit();
         boolean changed = false;
         for (String key : Prefs.allKeys()) {
             if (!prefs.contains(key)) {
-                editor.putBoolean(key, true);
+                editor.putBoolean(key, Prefs.defaultOf(key));
                 changed = true;
             }
         }
@@ -145,14 +150,22 @@ public class SettingsActivity extends AppCompatActivity {
         addHintCard();
     }
 
-    /** 一组开关 = 分组标题 + 一张 MD3 卡片（行之间带分割线）。 */
-    private void addGroup(String title, List<SwitchItem> items) {
+    /** 分组标题：比卡片内文字（BodyLarge 16sp）更大且加粗（18sp Bold）。 */
+    private TextView createGroupHeader(CharSequence text) {
         TextView header = new TextView(this);
         TextViewCompat.setTextAppearance(header,
-                com.google.android.material.R.style.TextAppearance_Material3_TitleSmall);
-        header.setText(title);
+                com.google.android.material.R.style.TextAppearance_Material3_TitleMedium);
+        header.setTypeface(header.getTypeface(), Typeface.BOLD);
+        header.setTextSize(TypedValue.COMPLEX_UNIT_SP, GROUP_HEADER_SP);
+        header.setText(text);
         header.setTextColor(MaterialColors.getColor(header,
                 com.google.android.material.R.attr.colorPrimary));
+        return header;
+    }
+
+    /** 一组开关 = 分组标题 + 一张 MD3 卡片（行之间带分割线）。 */
+    private void addGroup(String title, List<SwitchItem> items) {
+        TextView header = createGroupHeader(title);
         LinearLayout.LayoutParams headerParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         headerParams.topMargin = dp(16);
@@ -188,7 +201,7 @@ public class SettingsActivity extends AppCompatActivity {
             } else {
                 tvSummary.setText(item.summary);
             }
-            switchWidget.setChecked(prefs.getBoolean(item.key, true));
+            switchWidget.setChecked(prefs.getBoolean(item.key, Prefs.defaultOf(item.key)));
             switchWidget.setOnCheckedChangeListener((buttonView, isChecked) -> {
                 prefs.edit().putBoolean(item.key, isChecked).apply();
                 // 注意：这里不能用 XposedInit.log —— 模块 App 进程里没有 Xposed API 类
@@ -208,12 +221,7 @@ public class SettingsActivity extends AppCompatActivity {
     }
 
     private void addHintCard() {
-        TextView header = new TextView(this);
-        TextViewCompat.setTextAppearance(header,
-                com.google.android.material.R.style.TextAppearance_Material3_TitleSmall);
-        header.setText(R.string.settings_hint_title);
-        header.setTextColor(MaterialColors.getColor(header,
-                com.google.android.material.R.attr.colorPrimary));
+        TextView header = createGroupHeader(getString(R.string.settings_hint_title));
         LinearLayout.LayoutParams headerParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         headerParams.topMargin = dp(16);

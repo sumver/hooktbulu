@@ -8,6 +8,7 @@ import java.io.File;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import de.robv.android.xposed.XSharedPreferences;
 
@@ -60,8 +61,12 @@ final class Prefs {
     static final String K_SHARE_CLEAN = "share_card_clean";
     /** 自定义分享卡底部文案（长按输入）。 */
     static final String K_SHARE_CUSTOM = "share_card_custom";
-    /** 打卡分享卡：隐藏「坚持运动」天数并把「本次运动」移到左侧。 */
-    static final String K_SHARE_HIDE_DAYS = "share_card_hide_days";
+    /**
+     * 打卡分享卡：隐藏「坚持运动」天数并把「本次运动」移到左侧（v1.20 起默认关闭）。
+     * key 末尾带 2：v1.17~v1.19 期间该开关默认开启，存量配置里已被写成 true；
+     * 换 key 让旧值作废，保证"默认关闭"对新装/已装用户都生效（想开启在设置界面手动打开）。
+     */
+    static final String K_SHARE_HIDE_DAYS = "share_card_hide_days2";
     /** 隐藏分享卡右上角「两步路」logo 水印。 */
     static final String K_SHARE_LOGO = "share_card_logo";
 
@@ -84,6 +89,15 @@ final class Prefs {
                 K_SHARE_HIDE_DAYS,
                 K_SHARE_LOGO,
         };
+    }
+
+    /** 未配置时的默认值：仅下列 key 默认关闭，其余全部默认开启。 */
+    private static final Set<String> DEFAULT_OFF =
+            Collections.singleton(K_SHARE_HIDE_DAYS);
+
+    /** 开关的默认值（设置界面写入默认值、Hook 侧读取回退共用）。 */
+    static boolean defaultOf(String key) {
+        return !DEFAULT_OFF.contains(key);
     }
 
     /** Hook 进程的配置快照；null = 尚未读取（每个进程只读一次）。 */
@@ -124,7 +138,7 @@ final class Prefs {
             }
         }
         Boolean value = snapshot.get(key);
-        return value == null || value;
+        return value == null ? defaultOf(key) : value;
     }
 
     /** 供 XposedInit 在进程启动时预读并输出日志（复用同一份快照，不会产生第二次 I/O）。 */
@@ -141,7 +155,7 @@ final class Prefs {
             if (file == null || !file.canRead()) {
                 XposedInit.log("Prefs: settings unreadable ("
                         + (file == null ? "no file" : file.getAbsolutePath())
-                        + "); 回退为全部开启。请先打开模块设置界面并切换一次开关（触发 LSPosed 重写权限），"
+                        + "); 回退为内置默认值（普通开关开启，仅「隐藏坚持运动天数」默认关闭）。请先打开模块设置界面并切换一次开关（触发 LSPosed 重写权限），"
                         + "再强制停止两步路后重新打开");
             } else {
                 x.reload();
