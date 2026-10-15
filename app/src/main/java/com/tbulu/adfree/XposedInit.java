@@ -81,6 +81,11 @@ public class XposedInit implements IXposedHookLoadPackage {
         } catch (Throwable t) {
             log("ShareCardPunchLayoutHook install failed: " + t);
         }
+        try {
+            ShareCardLogoHook.install(lpparam.classLoader);
+        } catch (Throwable t) {
+            log("ShareCardLogoHook install failed: " + t);
+        }
 
         // 预读功能开关：每个进程只读一次；开关修改后需重启（强制停止）目标应用才生效
         try {
