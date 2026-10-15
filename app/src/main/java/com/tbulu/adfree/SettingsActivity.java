@@ -111,7 +111,10 @@ public class SettingsActivity extends AppCompatActivity {
                         getString(R.string.switch_share_clean_summary)),
                 new SwitchItem(Prefs.K_SHARE_CUSTOM,
                         getString(R.string.switch_share_custom),
-                        getString(R.string.switch_share_custom_summary))));
+                        getString(R.string.switch_share_custom_summary)),
+                new SwitchItem(Prefs.K_SHARE_HIDE_DAYS,
+                        getString(R.string.switch_share_hide_days),
+                        getString(R.string.switch_share_hide_days_summary))));
         groups.put(getString(R.string.group_interact), Arrays.asList(
                 new SwitchItem(Prefs.K_EQUIPMENT,
                         getString(R.string.switch_equipment),

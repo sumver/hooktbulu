@@ -60,6 +60,8 @@ final class Prefs {
     static final String K_SHARE_CLEAN = "share_card_clean";
     /** 自定义分享卡底部文案（长按输入）。 */
     static final String K_SHARE_CUSTOM = "share_card_custom";
+    /** 打卡分享卡：隐藏「坚持运动」天数并把「本次运动」移到左侧。 */
+    static final String K_SHARE_HIDE_DAYS = "share_card_hide_days";
 
     /** 全部开关 key（设置界面用于写默认值）。 */
     static String[] allKeys() {
@@ -77,6 +79,7 @@ final class Prefs {
                 K_VIP_SHARE,
                 K_SHARE_CLEAN,
                 K_SHARE_CUSTOM,
+                K_SHARE_HIDE_DAYS,
         };
     }
 
