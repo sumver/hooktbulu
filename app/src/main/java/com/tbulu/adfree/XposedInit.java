@@ -66,6 +66,16 @@ public class XposedInit implements IXposedHookLoadPackage {
         } catch (Throwable t) {
             log("AdsHook install failed: " + t);
         }
+        try {
+            ShareCardCleanHook.install(lpparam.classLoader);
+        } catch (Throwable t) {
+            log("ShareCardCleanHook install failed: " + t);
+        }
+        try {
+            ShareCardCustomTextHook.install(lpparam.classLoader);
+        } catch (Throwable t) {
+            log("ShareCardCustomTextHook install failed: " + t);
+        }
 
         // 预读功能开关：每个进程只读一次；开关修改后需重启（强制停止）目标应用才生效
         try {
