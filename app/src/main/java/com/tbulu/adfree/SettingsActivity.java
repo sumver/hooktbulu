@@ -33,8 +33,8 @@ import java.util.Map;
  * 模块设置界面（Material Design 3）。
  *
  * 与 Hook 进程的通信：写入本模块自己的 SharedPreferences（{@code settings}），
- * Hook 进程通过 XSharedPreferences 读取同名文件（见 {@link Prefs}）。
- * 开关保存后最长约 1 秒内在新的交互中生效。
+ * Hook 进程通过本模块的只读 ContentProvider（{@link PrefsProvider}）读取同一文件（见 {@link Prefs}）。
+ * 开关保存后需重启（强制停止）两步路才生效。
  */
 public class SettingsActivity extends AppCompatActivity {
 
