@@ -6,6 +6,7 @@
 
     <string name="group_purify">广告净化</string>
     <string name="group_mine">「我的」页净化</string>
+    <string name="group_share">分享卡净化</string>
     <string name="group_interact">交互优化</string>
     <string name="group_vip">会员权益本地解锁</string>
 
@@ -30,6 +31,10 @@
     <string name="switch_style_summary">解锁 记录/导航/桌面图标皮肤</string>
     <string name="switch_share">个性化分享</string>
     <string name="switch_share_summary">解锁 分享记录-进阶数据</string>
+    <string name="switch_share_clean">分享卡文案净化</string>
+    <string name="switch_share_clean_summary">「打卡/累计」分享图顶部只保留日期时间，去掉“在两步路app+运动类型”后缀</string>
+    <string name="switch_share_custom">自定义分享卡文案</string>
+    <string name="switch_share_custom_summary">长按「打卡/累计」卡片底部文案可输入自定义内容（不允许为空；App 刷新文案时还原）</string>
 
     <string name="settings_hint_title">使用说明</string>
     <string name="settings_hint">修改设置后，重启两步路APP后生效\n\n如果没有生效，请确保已在LSPosed里启用本模块且作用域勾选了“两步路”APP，然后回到本界面切换一次任意开关，再重启两步路。\n\n本模块开源地址：https://github.com/sumver/hooktbulu\n失效、BUG等前往以上项目提issue。</string>

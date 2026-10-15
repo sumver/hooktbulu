@@ -105,6 +105,13 @@ public class SettingsActivity extends AppCompatActivity {
                 new SwitchItem(Prefs.K_UPGRADE,
                         getString(R.string.switch_upgrade),
                         "")));
+        groups.put(getString(R.string.group_share), Arrays.asList(
+                new SwitchItem(Prefs.K_SHARE_CLEAN,
+                        getString(R.string.switch_share_clean),
+                        getString(R.string.switch_share_clean_summary)),
+                new SwitchItem(Prefs.K_SHARE_CUSTOM,
+                        getString(R.string.switch_share_custom),
+                        getString(R.string.switch_share_custom_summary))));
         groups.put(getString(R.string.group_interact), Arrays.asList(
                 new SwitchItem(Prefs.K_EQUIPMENT,
                         getString(R.string.switch_equipment),
