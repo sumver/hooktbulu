@@ -28,12 +28,14 @@ import de.robv.android.xposed.XposedHelpers;
  *   所以这里改写文本后，页面预览与导出的分享图会同时生效。
  *
  * 开关（设置界面「分享卡净化」分组，默认开启；修改后需重启两步路才生效）：
- *   开启：把该行文案截断为仅"日期时间"（去掉"在两步路app+运动类型"后缀）；
+ *   开启：只去掉该行文案中的"在两步路app"品牌词，保留"日期时间 + 运动类型"
+ *         （例：08月15日 14:30 在两步路app徒步 → 08月15日 14:30 徒步；v1.19 起保留运动类型）；
  *   关闭：不处理，保持 App 原样。
  *
  * 实现方式：hook setData() 执行后，在卡片视图树里深度优先找到文本包含锚点
  *   "在两步路app"的 TextView（全 App 只有这一处会出现该串，不会误伤），
- *   截断到锚点之前并去除尾部空白。不依赖混淆的 binding 字段名。
+ *   仅删除锚点品牌词本身、保留其后内容（运动类型），并去除首尾空白。
+ *   不依赖混淆的 binding 字段名。
  *
  * 类名/方法名与 9.2.8 混淆结果绑定（dexdump 核实：
  *   Lcom/lolaage/tbulu/tools/ui/views/SportPunchOrGrandTotalShareView;
@@ -88,7 +90,7 @@ final class ShareCardCleanHook {
         }
     }
 
-    /** 截断卡片顶部文案：只保留锚点之前的日期时间部分。 */
+    /** 净化卡片顶部文案：仅删除"在两步路app"品牌词，保留日期时间与运动类型。 */
     private static void apply(View root) {
         TextView tv = findMarkedTextView(root);
         if (tv == null) {
@@ -96,11 +98,10 @@ final class ShareCardCleanHook {
         }
         CharSequence cs = tv.getText();
         String text = cs == null ? "" : cs.toString();
-        int idx = text.indexOf(MARKER);
-        if (idx < 0) {
+        if (!text.contains(MARKER)) {
             return;
         }
-        String cleaned = text.substring(0, idx).trim();
+        String cleaned = text.replace(MARKER, "").trim();
         if (cleaned.equals(text)) {
             return;
         }
