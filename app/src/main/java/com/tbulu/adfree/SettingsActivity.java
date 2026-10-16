@@ -107,9 +107,9 @@ public class SettingsActivity extends AppCompatActivity {
                 new SwitchItem(Prefs.K_DOCK_BADGE,
                         getString(R.string.switch_dock_badge),
                         getString(R.string.switch_dock_badge_summary)),
-                new SwitchItem(Prefs.K_UPGRADE,
-                        getString(R.string.switch_upgrade),
-                        "")));
+                new SwitchItem(Prefs.K_MY_MESSAGE_BADGE,
+                        getString(R.string.switch_message_badge),
+                        getString(R.string.switch_message_badge_summary))));
         groups.put(getString(R.string.group_share), Arrays.asList(
                 new SwitchItem(Prefs.K_SHARE_CLEAN,
                         getString(R.string.switch_share_clean),
@@ -126,7 +126,10 @@ public class SettingsActivity extends AppCompatActivity {
         groups.put(getString(R.string.group_interact), Arrays.asList(
                 new SwitchItem(Prefs.K_EQUIPMENT,
                         getString(R.string.switch_equipment),
-                        getString(R.string.switch_equipment_summary))));
+                        getString(R.string.switch_equipment_summary)),
+                new SwitchItem(Prefs.K_UPGRADE,
+                        getString(R.string.switch_upgrade),
+                        "")));
         groups.put(getString(R.string.group_vip), Arrays.asList(
                 new SwitchItem(Prefs.K_VIP_WATERMARK,
                         getString(R.string.switch_watermark),
@@ -142,7 +145,13 @@ public class SettingsActivity extends AppCompatActivity {
                         getString(R.string.switch_style_summary)),
                 new SwitchItem(Prefs.K_VIP_SHARE,
                         getString(R.string.switch_share),
-                        getString(R.string.switch_share_summary))));
+                        getString(R.string.switch_share_summary)),
+                new SwitchItem(Prefs.K_VIP_OVERLAY_TRACKS,
+                        getString(R.string.switch_overlay_tracks),
+                        getString(R.string.switch_overlay_tracks_summary)),
+                new SwitchItem(Prefs.K_VIP_BULK_EXPORT_SHARE,
+                        getString(R.string.switch_bulk_export_share),
+                        getString(R.string.switch_bulk_export_share_summary))));
 
         for (Map.Entry<String, List<SwitchItem>> entry : groups.entrySet()) {
             addGroup(entry.getKey(), entry.getValue());

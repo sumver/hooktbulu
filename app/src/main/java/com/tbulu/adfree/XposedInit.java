@@ -60,6 +60,11 @@ public class XposedInit implements IXposedHookLoadPackage {
             log("DockBadgeHook install failed: " + t);
         }
         try {
+            MyMessageBadgeHook.install(lpparam.classLoader);
+        } catch (Throwable t) {
+            log("MyMessageBadgeHook install failed: " + t);
+        }
+        try {
             EquipmentTabHook.install(lpparam.classLoader);
         } catch (Throwable t) {
             log("EquipmentTabHook install failed: " + t);

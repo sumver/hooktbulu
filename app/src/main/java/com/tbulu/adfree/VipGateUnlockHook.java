@@ -9,13 +9,13 @@ import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 
 /**
- * 会员权益"本地门控"解锁（两步路 9.2.8，v1.6 新增，v1.8 起接入分类开关）。
+ * 会员权益"本地门控"解锁（两步路 9.2.8，v1.6 新增，v1.8 起接入分类开关，v1.23 追加轨迹叠加）。
  *
  * 背景（smali/JADX 核实）：
  *   App 的"我是不是会员"客户端判断集中在单例 o00OOOOo.OooO0O0：
  *     OooOooO() = OooOoOO() || OooOoo0()   —— VIP 或 SVIP
  *     OooOoo0()                            —— SVIP
- *   五项权益的入口/落点都会调这两个方法做本地拦截（弹 CommonConfirmDialog.showNeedVip
+ *   各权益的入口/落点都会调这两个方法做本地拦截（弹 CommonConfirmDialog.showNeedVip
  *   或 VipGuideDialog），判断通过才放行。
  *
  * 本 Hook 的设计原则：
@@ -24,12 +24,13 @@ import de.robv.android.xposed.XposedHelpers;
  *     即解除客户端拦截，服务端数据/校验完全保持原样；
  *   - 皮肤/挂件/分享图等"内容数据"仍来自服务端下发，本 Hook 只能解锁本地门控。
  *
- * 开关（设置界面「会员权益本地解锁」分组，默认开启）：
+ * 开关（设置界面「解锁会员功能」分组，默认开启）：
  *   图片水印 → K_VIP_WATERMARK；DIY首页 → K_VIP_DIY_HOME；头像挂件 → K_VIP_PENDANT；
- *   专属样式 → K_VIP_STYLE；个性化分享 → K_VIP_SHARE。
+ *   专属样式 → K_VIP_STYLE；个性化分享 → K_VIP_SHARE；轨迹叠加 → K_VIP_OVERLAY_TRACKS；
+ *   批量导出/分享 → K_VIP_BULK_EXPORT_SHARE。
  *   对应开关关闭时，其交互入口不再进入作用域，行为回到未解锁状态。
  *
- * 五项权益对应处理：
+ * 各权益对应处理：
  *   1) 图片水印      RecordPictureOrVideoActivity.o0000O()
  *                    条件：SpUtils.Oooo0o()>0 || !开关 || 会员 → 否则 showNeedVip。
  *   2) DIY首页       MoreSettingsActivity.onClick（"启动后默认界面"入口）+
@@ -44,6 +45,23 @@ import de.robv.android.xposed.XposedHelpers;
  *                      图标自带分档 type 1=VIP / 3=SVIP，点击时校验，放行后走图标应用分支）。
  *   5) 个性化分享    SportShareAdvancedDataView.OooOOo0()（保存带高级数据的分享图）
  *                    + OooOo00()（隐藏"加入VIP/SVIP会员"横幅）。
+ *   6) 轨迹叠加      o00O.OooO0O0.OooOOO(ctx, 已选数, 新增数, skipOffset)：配额判断，
+ *                    非会员 >10 条弹 TrackSuperpositionGuideDialog（开通引导），
+ *                    会员 >100 条 Toast"已达到叠加上限"；
+ *                    + TrackSearchAndSelectActivity.Ooooooo()（"选择轨迹(x/10)" vs "(x/100)" 标题）；
+ *                    + o00O.OooO0O0$Oooo000#then / $o000oOoO#then（叠加确认链路分支：非会员
+ *                      "已有+新增>10"弹 StackingTrackDialog，VIP 按 100 判断；选择页"确认叠加"、
+ *                      地图页"叠加到地图"、云端/本地列表等批量入口共用）；
+ *                    + StackingTrackDialog#setData（"温馨提醒"确认窗渲染：非会员显示"开通会员"
+ *                      按钮 + 10/100 引导文案、新增>10 时隐藏"叠加到地图"；VIP 无开通按钮、
+ *                      "≤100 条可叠加"）。
+ *                    作用域内按会员处理 → 上限 100 条、开通窗不再出现。
+ *                    注：配额判断为纯本地逻辑，无服务端校验。
+ *   7) 批量导出/分享 MyTrackLocalFragment.o00000oO(dataType)：轨迹列表「合并/导出」→ 批量操作弹窗
+ *                    （批量合并=1 / 批量导出=2 / 批量分享=3）的确定回调，导出与分享在此做本地会员
+ *                    判断，非会员弹 TrackBatchVipGuideDialog（批量合并无校验）；VIP 档"最多同时
+ *                    操作 100 条"的限制不变；名称/图标导出与系统分享的执行链路无二次校验。
+ *                    作用域内按会员处理 → 导出/分享直接执行。
  *
  * 所有类名/方法名均与 9.2.8 的混淆结果绑定；App 升级后若失效会自动跳过
  * （仅记录日志），不影响 App 运行。
@@ -113,6 +131,30 @@ final class VipGateUnlockHook {
                 "OooOo00", "share vip banner", Prefs.K_VIP_SHARE);
         wrapScope(cl, "com.lolaage.tbulu.tools.ui.dialog.TrackSetUpDialog",
                 "onClick", "record skin entry", Prefs.K_VIP_STYLE);
+        // 轨迹叠加配额：非会员上限 10 条（超限弹 TrackSuperpositionGuideDialog）；
+        // 作用域内按会员处理 → 上限 100 条（所有叠加入口共用该方法，见类注释 6)）
+        wrapScope(cl, "o00O.OooO0O0",
+                "OooOOO", "track overlay quota (10 -> 100)", Prefs.K_VIP_OVERLAY_TRACKS);
+        // 选择轨迹页标题：同一本地判断决定 "选择轨迹(x/10)" 还是 "(x/100)"
+        wrapScope(cl, "com.lolaage.tbulu.tools.ui.activity.tracks.search.TrackSearchAndSelectActivity",
+                "Ooooooo", "track select title max (10 -> 100)", Prefs.K_VIP_OVERLAY_TRACKS);
+        // 叠加确认链路（Bolts 回调）：非会员"已有+新增>10 或 本次新增=0"弹 StackingTrackDialog，
+        // 否则直接叠加；VIP 按 100 判断。两个 continuation 覆盖全部批量叠加入口
+        // （选择页"确认叠加"、地图页"叠加到地图"、云端/本地轨迹列表等）
+        wrapScope(cl, "o00O.OooO0O0$Oooo000",
+                "then", "overlay branch (select page confirm)", Prefs.K_VIP_OVERLAY_TRACKS);
+        wrapScope(cl, "o00O.OooO0O0$o000oOoO",
+                "then", "overlay branch (batch api)", Prefs.K_VIP_OVERLAY_TRACKS);
+        // 叠加确认弹窗（温馨提醒）渲染：非会员显示"开通会员"按钮 + 10/100 引导文案，
+        // 且本次新增>10 时隐藏"叠加到地图"；作用域内按会员渲染（"您最多支持同时叠加100条轨迹。"、
+        // 无开通按钮、≤100 条时保留"叠加到地图"）
+        wrapScope(cl, "com.lolaage.tbulu.tools.ui.dialog.StackingTrackDialog",
+                "setData", "overlay confirm dialog (vip render)", Prefs.K_VIP_OVERLAY_TRACKS);
+        // 轨迹列表「合并/导出」→ 批量操作弹窗（TrackBulkDataOperationDialog）确定回调：
+        // dataType=2 导出 / 3 分享都会调本地会员判断，非会员弹 TrackBatchVipGuideDialog（开通引导）；
+        // 会员档 >100 条同样弹该窗口（"VIP最多可同时操作100条"）。执行链路（本地生成文件/分享）无校验。
+        wrapScope(cl, "com.lolaage.tbulu.tools.ui.fragment.mytracks.MyTrackLocalFragment",
+                "o00000oO", "bulk export/share vip gate", Prefs.K_VIP_BULK_EXPORT_SHARE);
 
         // 3) 独立门控（仅对应功能类内部使用，按开关直接放行）
         hookAlwaysTrue(cl, "com.lolaage.tbulu.domain.SkinInfo",
