@@ -7,8 +7,10 @@ import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.net.Uri;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -22,7 +24,7 @@ import java.util.Set;
  *  - Hook（两步路）进程：启动后**异步**经 ContentResolver 查询
  *    content://com.sumver.tbulu.prefs/settings（首次查询会拉起模块 App 进程），
  *    成功后把整份配置缓存到进程内存；查询期间 / 查询失败时按内置默认值行事
- *    （普通开关开启，仅「隐藏坚持运动天数」默认关闭），不阻塞两步路启动。
+ *    （普通开关开启，「隐藏坚持运动天数」「隐藏消息未读数」默认关闭），不阻塞两步路启动。
  *  - 该通道是标准 Android IPC，不依赖任何 LSPosed 私有机制：
  *    LSPosed 的 New XSharedPreferences 已被官方标记废弃（计划 2.3.0 移除），故弃用；
  *    1.9.x / 2.x 及以后版本通用。
@@ -56,6 +58,12 @@ final class Prefs {
     static final String K_VIP_SERVICE = "vip_service";
     /** 底部 dock 栏红点。 */
     static final String K_DOCK_BADGE = "dock_badge";
+    /**
+     * 「我的」页右上角消息红点（未读数角标；消息入口保留，仍可点击进消息中心）。默认关闭。
+     * key 末尾带 2：v1.22 测试期该开关曾默认开启，存量配置里已被写成 true；
+     * 换 key 让旧值作废，保证"默认关闭"对新装/已装用户都生效（想开启在设置界面手动打开）。
+     */
+    static final String K_MY_MESSAGE_BADGE = "my_message_badge2";
     /** 升级弹窗（版本详情 + 我的页更新提示）。 */
     static final String K_UPGRADE = "upgrade_dialog";
     /** 装备 tab 防误触。 */
@@ -70,6 +78,10 @@ final class Prefs {
     static final String K_VIP_STYLE = "vip_style";
     /** 会员权益：个性化分享（高级数据分享图）。 */
     static final String K_VIP_SHARE = "vip_share";
+    /** 会员权益：轨迹叠加上限（非会员 10 条，解锁按会员上限 100 条）。 */
+    static final String K_VIP_OVERLAY_TRACKS = "vip_overlay_tracks";
+    /** 会员权益：轨迹列表「合并/导出」的批量导出、批量分享（非会员弹开通引导）。 */
+    static final String K_VIP_BULK_EXPORT_SHARE = "vip_bulk_export_share";
     /** 分享卡顶部文案净化（打卡/累计分享图）。 */
     static final String K_SHARE_CLEAN = "share_card_clean";
     /** 自定义分享卡底部文案（长按输入）。 */
@@ -90,6 +102,7 @@ final class Prefs {
                 K_VIP_BANNER,
                 K_VIP_SERVICE,
                 K_DOCK_BADGE,
+                K_MY_MESSAGE_BADGE,
                 K_UPGRADE,
                 K_EQUIPMENT,
                 K_VIP_WATERMARK,
@@ -97,6 +110,8 @@ final class Prefs {
                 K_VIP_PENDANT,
                 K_VIP_STYLE,
                 K_VIP_SHARE,
+                K_VIP_OVERLAY_TRACKS,
+                K_VIP_BULK_EXPORT_SHARE,
                 K_SHARE_CLEAN,
                 K_SHARE_CUSTOM,
                 K_SHARE_HIDE_DAYS,
@@ -105,8 +120,8 @@ final class Prefs {
     }
 
     /** 未配置时的默认值：仅下列 key 默认关闭，其余全部默认开启。 */
-    private static final Set<String> DEFAULT_OFF =
-            Collections.singleton(K_SHARE_HIDE_DAYS);
+    private static final Set<String> DEFAULT_OFF = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList(K_SHARE_HIDE_DAYS, K_MY_MESSAGE_BADGE)));
 
     /** 开关的默认值（设置界面写入默认值、Hook 侧读取回退共用）。 */
     static boolean defaultOf(String key) {
@@ -199,7 +214,7 @@ final class Prefs {
         }
         sSnapshot = Collections.emptyMap();
         XposedInit.log("Prefs: provider unavailable after " + MAX_LOAD_ATTEMPTS
-                + " attempts; 回退内置默认值（普通开关开启，仅「隐藏坚持运动天数」默认关闭）。"
+                + " attempts; 回退内置默认值（普通开关开启，「隐藏坚持运动天数」「隐藏消息未读数」默认关闭）。"
                 + "请确认模块 App 已安装，并打开过一次模块设置界面");
     }
 

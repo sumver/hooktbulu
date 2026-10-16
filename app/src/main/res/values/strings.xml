@@ -8,7 +8,7 @@
     <string name="group_mine">「我的」页净化</string>
     <string name="group_share">增强分享卡功能</string>
     <string name="group_interact">交互优化</string>
-    <string name="group_vip">会员权益本地解锁</string>
+    <string name="group_vip">解锁会员功能</string>
 
     <string name="switch_ads">隐藏各类广告</string>
     <string name="switch_ads_summary">开屏、信息流、轮播横幅、资讯列表、运动记录页、出游详情、插屏与弹窗广告</string>
@@ -18,6 +18,8 @@
     <string name="switch_vip_service_summary">移除「我的」页顶部「专属客服」入口</string>
     <string name="switch_dock_badge">屏蔽 dock 栏红点</string>
     <string name="switch_dock_badge_summary">底部「我的」图标不再显示未读红点（不影响消息数据本身）</string>
+    <string name="switch_message_badge">隐藏消息未读数</string>
+    <string name="switch_message_badge_summary">隐藏右上角未读消息数</string>
     <string name="switch_upgrade">屏蔽升级弹窗</string>
     <string name="switch_equipment">装备（商城）tab防误触</string>
     <string name="switch_equipment_summary">点击底部「装备」先确认「是否打开商城？」</string>
@@ -31,6 +33,10 @@
     <string name="switch_style_summary">解锁 记录/导航/桌面图标皮肤</string>
     <string name="switch_share">个性化分享</string>
     <string name="switch_share_summary">解锁 分享记录-进阶数据</string>
+    <string name="switch_overlay_tracks">叠加轨迹</string>
+    <string name="switch_overlay_tracks_summary">轨迹叠加从10条，解锁为100条</string>
+    <string name="switch_bulk_export_share">轨迹批量导出/分享</string>
+    <string name="switch_bulk_export_share_summary">解锁 轨迹批量导出、批量分享</string>
     <string name="switch_share_clean">分享卡文案净化</string>
     <string name="switch_share_clean_summary">打卡/累计预览图分享页，去掉两步路软广</string>
     <string name="switch_share_custom">分享卡文案自定义</string>
