@@ -36,6 +36,8 @@ final class ModuleSettingsDialog {
     private static final int COLOR_SUMMARY = 0xFF757575;
     private static final int COLOR_DIVIDER = 0xFFE0E0E0;
     private static final int COLOR_HINT = 0xFF9E9E9E;
+    private static final int COLOR_WARN = 0xFFFF1744;
+    private static final int COLOR_WARN_BG = 0xFFFFE4E9; // 浅红底，衬托红色提醒
 
     private ModuleSettingsDialog() {
     }
@@ -142,6 +144,21 @@ final class ModuleSettingsDialog {
         root.addView(makeDivider(context),
                 new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(context, 1)));
 
+        // 顶部红色提醒：改动需手动重启两步路生效
+        TextView notice = new TextView(context);
+        notice.setText("改动后，请手动重启两步路APP，模块功能才会生效。");
+        notice.setTextColor(COLOR_WARN);
+        notice.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f);
+        notice.setTypeface(notice.getTypeface(), android.graphics.Typeface.BOLD);
+        notice.setGravity(Gravity.CENTER_VERTICAL);
+        notice.setBackgroundColor(COLOR_WARN_BG);
+        notice.setPadding(dp(context, 20), dp(context, 12), dp(context, 20), dp(context, 12));
+        root.addView(notice, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        root.addView(makeDivider(context),
+                new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(context, 1)));
+
         ScrollView scroll = new ScrollView(context);
         scroll.setFillViewport(true);
         LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(
@@ -161,14 +178,6 @@ final class ModuleSettingsDialog {
                 content.addView(makeItemRow(context, item));
             }
         }
-
-        TextView hint = new TextView(context);
-        hint.setText("改动即时生效，并自动保存；如需与模块 App 设置保持一致可重启两步路。");
-        hint.setTextColor(COLOR_HINT);
-        hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f);
-        hint.setLineSpacing(dp(context, 2), 1f);
-        hint.setPadding(dp(context, 20), dp(context, 8), dp(context, 20), dp(context, 4));
-        content.addView(hint);
 
         Button close = new Button(context);
         close.setText("关闭");
