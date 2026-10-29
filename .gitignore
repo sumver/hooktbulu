@@ -17,6 +17,6 @@ local.properties
 # 构建输出（供手动上传发布用）
 dist/
 
-# 技术文档（仅本地记录，不随仓库开源）
-README-技术文档.md
-户外清单-技术调查.md
+# 说明文档：仓库只保留 README.md，其余 md 仅本地保留、不上传
+*.md
+!README.md
