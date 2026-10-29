@@ -92,18 +92,24 @@ public class XposedInit implements IXposedHookLoadPackage {
         if (sHooksInstalled) {
             return;
         }
-        ClassLoader cl = null;
+        // 版本分派：必须拿到 Application 才能可靠读取 versionCode；拿不到就等 onCreate 重试。
+        android.app.Application app = resolveApplication();
+        if (app == null) {
+            return;
+        }
+        int versionCode;
         try {
-            android.app.Application app = AndroidAppHelper.currentApplication();
-            if (app != null) {
-                cl = app.getClassLoader();
-            }
-            if (cl == null) {
-                cl = Thread.currentThread().getContextClassLoader();
-            }
-            if (cl == null) {
-                return;
-            }
+            versionCode = app.getPackageManager().getPackageInfo(TARGET_PKG, 0).versionCode;
+        } catch (Throwable t) {
+            log("read versionCode failed: " + t);
+            return;
+        }
+        TargetProfile profile = TargetProfile.forVersion(versionCode);
+        ClassLoader cl = app.getClassLoader();
+        if (cl == null) {
+            return;
+        }
+        try {
             Class<?> probe = XposedHelpers.findClassIfExists(PROBE_CLASS, cl);
             if (probe == null) {
                 return;
@@ -116,17 +122,40 @@ public class XposedInit implements IXposedHookLoadPackage {
         // ScanHook 为临时运行时类扫描工具，9.2.9 定位完成后不再执行（保留代码备用）。
         // try { ScanHook.scan(cl); } catch (Throwable t) { log("scan failed: " + t); }
         log("probe class resolved, installing hooks with classLoader=" + cl);
-        installAll(cl);
+        log("target app versionCode=" + versionCode + ", profile=" + profile.describe()
+                + (profile.known ? "" : " (unsupported version, best-effort)"));
+        installAll(cl, profile);
     }
 
-    private static void installAll(ClassLoader cl) {
+    /** 取目标进程的 Application（优先 AndroidAppHelper，其次 ActivityThread）。 */
+    private static android.app.Application resolveApplication() {
         try {
-            VipBannerHook.install(cl);
+            android.app.Application app = AndroidAppHelper.currentApplication();
+            if (app != null) {
+                return app;
+            }
+        } catch (Throwable ignored) {
+        }
+        try {
+            Class<?> at = Class.forName("android.app.ActivityThread");
+            Object thread = at.getMethod("currentActivityThread").invoke(null);
+            Object app = at.getMethod("getApplication").invoke(thread);
+            if (app instanceof android.app.Application) {
+                return (android.app.Application) app;
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
+    }
+
+    private static void installAll(ClassLoader cl, TargetProfile profile) {
+        try {
+            VipBannerHook.install(cl, profile);
         } catch (Throwable t) {
             log("VipBannerHook install failed: " + t);
         }
         try {
-            VipGateUnlockHook.install(cl);
+            VipGateUnlockHook.install(cl, profile);
         } catch (Throwable t) {
             log("VipGateUnlockHook install failed: " + t);
         }
@@ -136,7 +165,7 @@ public class XposedInit implements IXposedHookLoadPackage {
             log("DockBadgeHook install failed: " + t);
         }
         try {
-            MyMessageBadgeHook.install(cl);
+            MyMessageBadgeHook.install(cl, profile);
         } catch (Throwable t) {
             log("MyMessageBadgeHook install failed: " + t);
         }

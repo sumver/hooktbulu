@@ -72,11 +72,6 @@ import de.robv.android.xposed.XposedHelpers;
  */
 final class VipGateUnlockHook {
 
-    /** 会员判断单例：9.2.9 = o00O0oOO.o0OoOo0；9.2.8 = o00OOOOo.OooO0O0。按顺序尝试。 */
-    private static final String[] AUTH_SINGLETON_NAMES = {
-            "o00O0oOO.o0OoOo0",       // 9.2.9
-            "o00OOOOo.OooO0O0",       // 9.2.8
-    };
     /** OooOooO() = OooOoOO() || OooOoo0()（VIP 或 SVIP）。 */
     private static final String M_VIP_OR_SVIP = "OooOooO";
     /** OooOoo0()（SVIP）。 */
@@ -105,9 +100,9 @@ final class VipGateUnlockHook {
     private VipGateUnlockHook() {
     }
 
-    static void install(ClassLoader cl) {
+    static void install(ClassLoader cl, TargetProfile profile) {
         // 1) 会员判断单例：作用域内临时返回 true（不改账号状态、不碰网络）
-        Class<?> auth = findClassAny(cl, AUTH_SINGLETON_NAMES);
+        Class<?> auth = findClassAny(cl, profile.authSingletonNames);
         if (auth == null) {
             XposedInit.log("VipGateUnlockHook: member-check singleton not found, skip.");
             return; // 所有解锁都依赖该单例，找不到就整体跳过
@@ -133,11 +128,8 @@ final class VipGateUnlockHook {
         // 挂件列表 item 点击（adapter 内联点击监听：锁定挂件在此弹 VipGuideDialog）
         wrapScope(cl, "com.lolaage.tbulu.tools.ui.activity.PendantListFragment$mAdapter$2$1$convert$1$1",
                 "invoke", "pendant item click", Prefs.K_VIP_PENDANT);
-        // 桌面图标点击（ChangeAppLogoActivity 内联点击监听：type 1=VIP / 3=SVIP；
-        // 9.2.9 该匿名类名从 $mAdapter$2$OooO00o 变为 $mAdapter$2$1）
-        wrapScopeAny(cl, new String[]{
-                        "com.lolaage.tbulu.tools.ChangeAppLogoActivity$mAdapter$2$1",
-                        "com.lolaage.tbulu.tools.ChangeAppLogoActivity$mAdapter$2$OooO00o"},
+        // 桌面图标点击（ChangeAppLogoActivity 内联点击监听：type 1=VIP / 3=SVIP）
+        wrapScopeAny(cl, profile.appLogoListenerNames,
                 "OooOo00", "app logo item click", Prefs.K_VIP_STYLE);
         wrapScope(cl, "com.lolaage.tbulu.tools.ui.views.SportShareAdvancedDataView",
                 "OooOOo0", "share advanced data save", Prefs.K_VIP_SHARE);
@@ -147,8 +139,7 @@ final class VipGateUnlockHook {
                 "onClick", "record skin entry", Prefs.K_VIP_STYLE);
         // 轨迹叠加配额：非会员上限 10 条（超限弹 TrackSuperpositionGuideDialog）；
         // 作用域内按会员处理 → 上限 100 条（所有叠加入口共用该方法，见类注释 6)）
-        // 9.2.9 类名变为 o00O0O0O.OooO0O0，9.2.8 为 o00O.OooO0O0
-        wrapScopeAny(cl, new String[]{"o00O0O0O.OooO0O0", "o00O.OooO0O0"},
+        wrapScopeAny(cl, profile.overlayQuotaNames,
                 "OooOOO", "track overlay quota (10 -> 100)", Prefs.K_VIP_OVERLAY_TRACKS);
         // 选择轨迹页标题：同一本地判断决定 "选择轨迹(x/10)" 还是 "(x/100)"
         wrapScope(cl, "com.lolaage.tbulu.tools.ui.activity.tracks.search.TrackSearchAndSelectActivity",
@@ -156,9 +147,9 @@ final class VipGateUnlockHook {
         // 叠加确认链路（Bolts 回调）：非会员"已有+新增>10 或 本次新增=0"弹 StackingTrackDialog，
         // 否则直接叠加；VIP 按 100 判断。两个 continuation 覆盖全部批量叠加入口
         // （选择页"确认叠加"、地图页"叠加到地图"、云端/本地轨迹列表等）
-        wrapScopeAny(cl, new String[]{"o00O0O0O.OooO0O0$Oooo000", "o00O.OooO0O0$Oooo000"},
+        wrapScopeAny(cl, profile.overlayBranch1Names,
                 "then", "overlay branch (select page confirm)", Prefs.K_VIP_OVERLAY_TRACKS);
-        wrapScopeAny(cl, new String[]{"o00O0O0O.OooO0O0$o000oOoO", "o00O.OooO0O0$o000oOoO"},
+        wrapScopeAny(cl, profile.overlayBranch2Names,
                 "then", "overlay branch (batch api)", Prefs.K_VIP_OVERLAY_TRACKS);
         // 叠加确认弹窗（温馨提醒）渲染：非会员显示"开通会员"按钮 + 10/100 引导文案，
         // 且本次新增>10 时隐藏"叠加到地图"；作用域内按会员渲染（"您最多支持同时叠加100条轨迹。"、
@@ -166,21 +157,19 @@ final class VipGateUnlockHook {
         wrapScope(cl, "com.lolaage.tbulu.tools.ui.dialog.StackingTrackDialog",
                 "setData", "overlay confirm dialog (vip render)", Prefs.K_VIP_OVERLAY_TRACKS);
         // 轨迹列表「合并/导出」→ 批量操作弹窗（TrackBulkDataOperationDialog）确定回调：
-        // 9.2.9 回调方法名 o00000oo(Integer)；9.2.8 为 o00000oO(dataType)。
+        // 各版本回调方法名不同（9.2.9=o00000oo(Integer)，9.2.8=o00000oO(Integer)），
+        // 由版本档案给出候选，并按「1 个 int/Integer 参数」的签名校验，避免命中同名的无参方法。
         // dataType=2 导出 / 3 分享都会调本地会员判断，非会员弹 TrackBatchVipGuideDialog（开通引导）；
         // 会员档 >100 条同样弹该窗口（"VIP最多可同时操作100条"）。执行链路（本地生成文件/分享）无校验。
-        wrapScopeMethods(cl, "com.lolaage.tbulu.tools.ui.fragment.mytracks.MyTrackLocalFragment",
-                new String[]{"o00000oo", "o00000oO"},
-                "bulk export/share vip gate", Prefs.K_VIP_BULK_EXPORT_SHARE);
+        wrapScopeBySignature(cl, "com.lolaage.tbulu.tools.ui.fragment.mytracks.MyTrackLocalFragment",
+                profile.bulkExportMethods, "bulk export/share vip gate", Prefs.K_VIP_BULK_EXPORT_SHARE);
 
         // 3) 独立门控（仅对应功能类内部使用，按开关直接放行）
         hookAlwaysTrue(cl, "com.lolaage.tbulu.domain.SkinInfo",
                 "isCanUse", "skin isCanUse", Prefs.K_VIP_STYLE);
-        // 挂件选择权限：9.2.9 方法名从 Oooo0O0(int) 变为 Oooo0(int)（1=VIP / 2=SVIP）
-        hookAlwaysTrueAny(cl, new String[]{
-                        "com.lolaage.tbulu.tools.ui.activity.SetPendantActivity"},
-                new String[]{"Oooo0", "Oooo0O0"},
-                "pendant selection permission", Prefs.K_VIP_PENDANT);
+        // 挂件选择权限（(int)->boolean，1=VIP / 2=SVIP）：版本档案给出方法名候选
+        hookAlwaysTrueBySignature(cl, "com.lolaage.tbulu.tools.ui.activity.SetPendantActivity",
+                profile.pendantPermissionMethods, "pendant selection permission", Prefs.K_VIP_PENDANT);
 
         XposedInit.log("VipGateUnlockHook installed.");
     }
@@ -276,6 +265,117 @@ final class VipGateUnlockHook {
             XposedInit.log("VipGateUnlockHook: scope hook failed "
                     + String.join("/", classNames) + "." + String.join("/", methods) + ": " + t);
         }
+    }
+
+    /** 按签名（1 个 int/Integer 参数）解析方法并做作用域包装。 */
+    private static void wrapScopeBySignature(ClassLoader cl, String className, String[] methods,
+                                             String label, final String... keys) {
+        try {
+            Class<?> cls = findClassAny(cl, new String[]{className});
+            if (cls == null) {
+                XposedInit.log("VipGateUnlockHook: scope hook class not found: " + className);
+                return;
+            }
+            String method = firstMethodBySignature(cls, methods, true);
+            if (method == null) {
+                XposedInit.log("VipGateUnlockHook: scope hook method(1-int) not found: "
+                        + cls.getName() + "." + String.join("/", methods));
+                return;
+            }
+            hookScopeNamed(cls, method, label, keys);
+        } catch (Throwable t) {
+            XposedInit.log("VipGateUnlockHook: scope hook failed " + className + ": " + t);
+        }
+    }
+
+    private static void hookScopeNamed(Class<?> cls, String method, String label, final String... keys) {
+        XposedBridge.hookAllMethods(cls, method, new XC_MethodHook() {
+            @Override
+            protected void beforeHookedMethod(MethodHookParam param) {
+                boolean enter = anyEnabled(keys);
+                sScopeStack.get().push(enter);
+                if (enter) {
+                    enterScope();
+                }
+            }
+
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) {
+                Boolean enter = sScopeStack.get().poll();
+                if (Boolean.TRUE.equals(enter)) {
+                    exitScope();
+                }
+            }
+        });
+        XposedInit.log("VipGateUnlockHook: scoped " + cls.getSimpleName() + "." + method
+                + " (" + label + ")");
+    }
+
+    /**
+     * 返回第一个满足签名的方法名：
+     *  - oneIntParam=true：恰好 1 个 int/Integer 参数（批量导出回调等）；
+     *  - oneIntParam=false：恰好 1 个 int 参数且返回 boolean（挂件权限等）。
+     */
+    private static String firstMethodBySignature(Class<?> cls, String[] methods, boolean oneIntParam) {
+        for (String name : methods) {
+            for (java.lang.reflect.Method m : cls.getDeclaredMethods()) {
+                if (!m.getName().equals(name)) {
+                    continue;
+                }
+                Class<?>[] ps = m.getParameterTypes();
+                if (ps.length != 1) {
+                    continue;
+                }
+                boolean intParam = ps[0] == int.class || ps[0] == Integer.class;
+                if (!intParam) {
+                    continue;
+                }
+                if (oneIntParam || m.getReturnType() == boolean.class) {
+                    return name;
+                }
+            }
+        }
+        return null;
+    }
+
+    /** 按签名（1 个 int 参数 -> boolean）解析并做“直接置真”。 */
+    private static void hookAlwaysTrueBySignature(ClassLoader cl, String className, String[] methods,
+                                                  String label, final String key) {
+        try {
+            Class<?> cls = findClassAny(cl, new String[]{className});
+            if (cls == null) {
+                XposedInit.log("VipGateUnlockHook: always-true class not found: " + className);
+                return;
+            }
+            String method = firstMethodBySignature(cls, methods, false);
+            if (method == null) {
+                XposedInit.log("VipGateUnlockHook: always-true method(int->bool) not found: "
+                        + cls.getName() + "." + String.join("/", methods));
+                return;
+            }
+            hookAlwaysTrueOn(cls, method, label, key);
+        } catch (Throwable t) {
+            XposedInit.log("VipGateUnlockHook: always-true hook failed " + className + ": " + t);
+        }
+    }
+
+    private static void hookAlwaysTrueOn(Class<?> cls, String method, String label, final String key) {
+        XposedBridge.hookAllMethods(cls, method, new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) {
+                if (param.getThrowable() != null || !Prefs.isEnabled(key)) {
+                    return;
+                }
+                Object result = param.getResult();
+                if (result instanceof Boolean && (Boolean) result) {
+                    return;
+                }
+                param.setResult(Boolean.TRUE);
+                logOnce("bypass " + cls.getSimpleName() + "." + method + " -> true");
+            }
+        });
+        XposedInit.log("VipGateUnlockHook: hooked " + cls.getSimpleName() + "." + method
+                + " (" + label + ")");
     }
 
     /** 返回 methods 中第一个在 cls 上存在的方法名。 */

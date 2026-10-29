@@ -65,7 +65,7 @@ public class SettingsActivity extends AppCompatActivity {
 
         MaterialToolbar toolbar = findViewById(R.id.toolbar);
         toolbar.setTitle(R.string.app_name);
-        toolbar.setSubtitle(R.string.settings_subtitle);
+        toolbar.setSubtitle("当前适配版本：" + TargetProfile.supportedVersions());
 
         prefs = Prefs.ui(this);
         seedDefaults();
@@ -153,9 +153,10 @@ public class SettingsActivity extends AppCompatActivity {
                         getString(R.string.switch_bulk_export_share),
                         getString(R.string.switch_bulk_export_share_summary))));
 
-        for (Map.Entry<String, List<SwitchItem>> entry : groups.entrySet()) {
-            addGroup(entry.getKey(), entry.getValue());
-        }
+        // 独立 App 仅作引导页：所有设置项隐藏（addGroup 代码保留，后续可恢复）
+        // for (Map.Entry<String, List<SwitchItem>> entry : groups.entrySet()) {
+        //     addGroup(entry.getKey(), entry.getValue());
+        // }
         addHintCard();
     }
 

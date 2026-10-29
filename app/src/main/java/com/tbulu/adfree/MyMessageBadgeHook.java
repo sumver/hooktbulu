@@ -34,16 +34,6 @@ import de.robv.android.xposed.XposedHelpers;
  */
 final class MyMessageBadgeHook {
 
-    private static final String[] FRAGMENT_CLASSES = {
-            "com.lolaage.tbulu.tools.ui.fragment.main.o0000",         // 9.2.8 / 部分 9.2.9
-            "com.lolaage.tbulu.tools.ui.fragment.main.SetUpFragment", // 9.2.9 真实类名
-    };
-    /** 未读数展示回调（Bolts Continuation 的 lambda 实现类）。
-     *  9.2.9 中 o0000$OooOo 可能已改名（反编译产物里显示为 SetUpFragment$OooOo），做候选兜底。 */
-    private static final String[] CONTINUATION_CLASSES = {
-            "com.lolaage.tbulu.tools.ui.fragment.main.o0000$OooOo",
-            "com.lolaage.tbulu.tools.ui.fragment.main.SetUpFragment$OooOo",
-    };
     /** Continuation 持有的 Fragment 字段名。 */
     private static final String CONTINUATION_FRAGMENT_FIELD = "OooO00o";
     /** Fragment 缓存的红点 TextView 字段名（App 更新红点的同一实例）。 */
@@ -64,9 +54,9 @@ final class MyMessageBadgeHook {
         return Prefs.isEnabled(Prefs.K_MY_MESSAGE_BADGE);
     }
 
-    static void install(ClassLoader cl) {
+    static void install(ClassLoader cl, TargetProfile profile) {
         // 1) 红点展示回调：未读数刷新后强制隐藏
-        Class<?> continuation = findClassAny(cl, CONTINUATION_CLASSES);
+        Class<?> continuation = findClassAny(cl, profile.msgBadgeContinuationNames);
         if (continuation != null) {
             hookAllSafe(continuation, "then", new XC_MethodHook() {
                 @Override
@@ -86,7 +76,7 @@ final class MyMessageBadgeHook {
         }
 
         // 2) 生命周期兜底：进入/返回"我的"页时确保红点隐藏
-        for (String fragmentName : FRAGMENT_CLASSES) {
+        for (String fragmentName : profile.fragmentNames) {
             final Class<?> fragment;
             try {
                 fragment = XposedHelpers.findClass(fragmentName, cl);

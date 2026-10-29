@@ -32,11 +32,6 @@ import de.robv.android.xposed.XposedHelpers;
  */
 final class VipBannerHook {
 
-    private static final String[] FRAGMENT_CLASSES = {
-            "com.lolaage.tbulu.tools.ui.fragment.main.o0000",         // 9.2.8 / 部分 9.2.9
-            "com.lolaage.tbulu.tools.ui.fragment.main.SetUpFragment", // 9.2.9 真实类名（dump 中可见）
-    };
-
     /** 需要在"我的"页隐藏的控件资源名。 */
     private static final String[] HIDDEN_ID_NAMES = {
             "rlVip",              // 会员促销横幅
@@ -49,9 +44,9 @@ final class VipBannerHook {
     private VipBannerHook() {
     }
 
-    static void install(ClassLoader cl) {
+    static void install(ClassLoader cl, TargetProfile profile) {
         java.util.List<Class<?>> fragments = new java.util.ArrayList<>();
-        for (String name : FRAGMENT_CLASSES) {
+        for (String name : profile.fragmentNames) {
             try {
                 Class<?> c = XposedHelpers.findClass(name, cl);
                 if (!fragments.contains(c)) {

@@ -3,6 +3,7 @@ package com.tbulu.adfree;
 import android.animation.ValueAnimator;
 import android.app.Dialog;
 import android.content.Context;
+import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -12,6 +13,12 @@ import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.RippleDrawable;
+import android.net.Uri;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.TextPaint;
+import android.text.method.LinkMovementMethod;
+import android.text.style.ClickableSpan;
 import android.util.DisplayMetrics;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -177,6 +184,37 @@ final class ModuleSettingsDialog {
         root.addView(subtitle, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
+        // 支持版本 + 反馈链接（链接可点击跳转浏览器）
+        String versions = TargetProfile.supportedVersions();
+        String prefix = "当前模块支持的版本：" + versions + "。如有失效，请前往 ";
+        final String feedbackUrl = "https://github.com/sumver/hooktbulu";
+        String suffix = " 进行反馈。";
+        SpannableString supportText = new SpannableString(prefix + feedbackUrl + suffix);
+        int linkStart = prefix.length();
+        int linkEnd = linkStart + feedbackUrl.length();
+        supportText.setSpan(new ClickableSpan() {
+            @Override
+            public void onClick(View widget) {
+                openUrl(context, feedbackUrl);
+            }
+
+            @Override
+            public void updateDrawState(TextPaint ds) {
+                ds.setColor(p.primary);
+                ds.setUnderlineText(false);
+            }
+        }, linkStart, linkEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        TextView support = new TextView(context);
+        support.setText(supportText);
+        support.setTextColor(p.onSurfaceVariant);
+        support.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f);
+        support.setLineSpacing(dp(context, 2), 1f);
+        support.setMovementMethod(LinkMovementMethod.getInstance());
+        support.setHighlightColor(Color.TRANSPARENT);
+        support.setPadding(dp(context, 24), dp(context, 8), dp(context, 24), 0);
+        root.addView(support, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
         // 顶部提醒（error container 色调）
         TextView notice = new TextView(context);
         notice.setText("改动后，请手动重启两步路APP，模块功能才会生效。");
@@ -230,6 +268,17 @@ final class ModuleSettingsDialog {
         root.addView(close, closeParams);
 
         return root;
+    }
+
+    /** 打开外部链接（反馈地址等）。 */
+    private static void openUrl(Context context, String url) {
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            context.startActivity(intent);
+        } catch (Throwable t) {
+            XposedInit.log("ModuleSettingsDialog: open url failed: " + t);
+        }
     }
 
     private static View makeSectionHeader(Context context, String text, Palette p) {
