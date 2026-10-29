@@ -32,7 +32,10 @@ import de.robv.android.xposed.XposedHelpers;
  */
 final class VipBannerHook {
 
-    private static final String FRAGMENT_CLASS = "com.lolaage.tbulu.tools.ui.fragment.main.o0000";
+    private static final String[] FRAGMENT_CLASSES = {
+            "com.lolaage.tbulu.tools.ui.fragment.main.o0000",         // 9.2.8 / 部分 9.2.9
+            "com.lolaage.tbulu.tools.ui.fragment.main.SetUpFragment", // 9.2.9 真实类名（dump 中可见）
+    };
 
     /** 需要在"我的"页隐藏的控件资源名。 */
     private static final String[] HIDDEN_ID_NAMES = {
@@ -47,41 +50,51 @@ final class VipBannerHook {
     }
 
     static void install(ClassLoader cl) {
-        Class<?> fragment;
-        try {
-            fragment = XposedHelpers.findClass(FRAGMENT_CLASS, cl);
-        } catch (Throwable t) {
-            XposedInit.log("VipBannerHook: fragment class not found, skip. " + t);
+        java.util.List<Class<?>> fragments = new java.util.ArrayList<>();
+        for (String name : FRAGMENT_CLASSES) {
+            try {
+                Class<?> c = XposedHelpers.findClass(name, cl);
+                if (!fragments.contains(c)) {
+                    fragments.add(c);
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        if (fragments.isEmpty()) {
+            XposedInit.log("VipBannerHook: fragment class not found, skip.");
             return;
         }
+        XposedInit.log("VipBannerHook: fragment classes = " + fragments);
 
-        // 1) 数据刷新后隐藏
-        safeHookAll(fragment, "o000OOo0", new XC_MethodHook() {
-            @Override
-            protected void afterHookedMethod(MethodHookParam param) {
-                hidePromoViews(param.thisObject);
-            }
-        });
+        for (final Class<?> fragment : fragments) {
+            // 1) 数据刷新后隐藏
+            safeHookAll(fragment, "o000OOo0", new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) {
+                    hidePromoViews(param.thisObject);
+                }
+            });
 
-        // 2) 视图创建 / 回到前台（含从其它页返回）/ 切换隐藏时隐藏
-        safeHookAll(fragment, "OooOo0", new XC_MethodHook() {
-            @Override
-            protected void afterHookedMethod(MethodHookParam param) {
-                hidePromoViews(param.thisObject);
-            }
-        });
-        safeHookAll(fragment, "onResume", new XC_MethodHook() {
-            @Override
-            protected void afterHookedMethod(MethodHookParam param) {
-                hidePromoViews(param.thisObject);
-            }
-        });
-        safeHookAll(fragment, "onHiddenChanged", new XC_MethodHook() {
-            @Override
-            protected void afterHookedMethod(MethodHookParam param) {
-                hidePromoViews(param.thisObject);
-            }
-        });
+            // 2) 视图创建 / 回到前台（含从其它页返回）/ 切换隐藏时隐藏
+            safeHookAll(fragment, "OooOo0", new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) {
+                    hidePromoViews(param.thisObject);
+                }
+            });
+            safeHookAll(fragment, "onResume", new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) {
+                    hidePromoViews(param.thisObject);
+                }
+            });
+            safeHookAll(fragment, "onHiddenChanged", new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) {
+                    hidePromoViews(param.thisObject);
+                }
+            });
+        }
 
         // 全局守卫：任何代码试图把目标控件设为可见都会被改写为 GONE。
         // 注意：btnCustomerService 是本 App 中 ExclusiveCustomerServiceDialog 的唯一入口，
@@ -122,6 +135,9 @@ final class VipBannerHook {
             if (!(viewObj instanceof View)) {
                 return;
             }
+            if (sPromoLogged.compareAndSet(false, true)) {
+                XposedInit.log("hidePromoViews running on " + fragment.getClass().getName());
+            }
             View root = (View) viewObj;
             for (String name : HIDDEN_ID_NAMES) {
                 String key = keyForName(name);
@@ -144,6 +160,11 @@ final class VipBannerHook {
         }
     }
 
+    private static final java.util.concurrent.atomic.AtomicBoolean sPromoLogged =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+    private static final java.util.concurrent.atomic.AtomicBoolean sCompactLogged =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+
     /**
      * 去掉 VIP 横幅（rlVip）遗留的空档。
      *
@@ -162,6 +183,10 @@ final class VipBannerHook {
             return;
         }
         try {
+            if (sCompactLogged.compareAndSet(false, true)) {
+                XposedInit.log("compactHeaderSpace ids: account_part=" + resolveId("account_part")
+                        + " vUserData=" + resolveId("vUserData"));
+            }
             // 1) account_part 高度 252dp -> 202dp
             int idAccountPart = resolveId("account_part");
             if (idAccountPart != 0) {
@@ -258,6 +283,7 @@ final class VipBannerHook {
                         sIdCache.put(name, rid);
                         XposedInit.log("resolved " + name + " id = 0x" + Integer.toHexString(rid));
                         XposedInit.logTargetVersionOnce();
+                        return rid;
                     }
                 }
             } catch (Throwable t) {

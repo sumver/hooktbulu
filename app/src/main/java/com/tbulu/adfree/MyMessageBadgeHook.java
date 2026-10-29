@@ -34,11 +34,16 @@ import de.robv.android.xposed.XposedHelpers;
  */
 final class MyMessageBadgeHook {
 
-    private static final String FRAGMENT_CLASS =
-            "com.lolaage.tbulu.tools.ui.fragment.main.o0000";
-    /** 未读数展示回调（Bolts Continuation 的 lambda 实现类）。 */
-    private static final String CONTINUATION_CLASS =
-            "com.lolaage.tbulu.tools.ui.fragment.main.o0000$OooOo";
+    private static final String[] FRAGMENT_CLASSES = {
+            "com.lolaage.tbulu.tools.ui.fragment.main.o0000",         // 9.2.8 / 部分 9.2.9
+            "com.lolaage.tbulu.tools.ui.fragment.main.SetUpFragment", // 9.2.9 真实类名
+    };
+    /** 未读数展示回调（Bolts Continuation 的 lambda 实现类）。
+     *  9.2.9 中 o0000$OooOo 可能已改名（反编译产物里显示为 SetUpFragment$OooOo），做候选兜底。 */
+    private static final String[] CONTINUATION_CLASSES = {
+            "com.lolaage.tbulu.tools.ui.fragment.main.o0000$OooOo",
+            "com.lolaage.tbulu.tools.ui.fragment.main.SetUpFragment$OooOo",
+    };
     /** Continuation 持有的 Fragment 字段名。 */
     private static final String CONTINUATION_FRAGMENT_FIELD = "OooO00o";
     /** Fragment 缓存的红点 TextView 字段名（App 更新红点的同一实例）。 */
@@ -61,7 +66,7 @@ final class MyMessageBadgeHook {
 
     static void install(ClassLoader cl) {
         // 1) 红点展示回调：未读数刷新后强制隐藏
-        Class<?> continuation = findClassSafe(cl, CONTINUATION_CLASS);
+        Class<?> continuation = findClassAny(cl, CONTINUATION_CLASSES);
         if (continuation != null) {
             hookAllSafe(continuation, "then", new XC_MethodHook() {
                 @Override
@@ -81,8 +86,13 @@ final class MyMessageBadgeHook {
         }
 
         // 2) 生命周期兜底：进入/返回"我的"页时确保红点隐藏
-        Class<?> fragment = findClassSafe(cl, FRAGMENT_CLASS);
-        if (fragment != null) {
+        for (String fragmentName : FRAGMENT_CLASSES) {
+            final Class<?> fragment;
+            try {
+                fragment = XposedHelpers.findClass(fragmentName, cl);
+            } catch (Throwable ignored) {
+                continue;
+            }
             for (String method : new String[]{"OooOo0", "onResume", "onHiddenChanged"}) {
                 hookAllSafe(fragment, method, new XC_MethodHook() {
                     @Override
@@ -170,6 +180,19 @@ final class MyMessageBadgeHook {
             XposedInit.log("MyMessageBadgeHook: class not found (skip): " + name);
             return null;
         }
+    }
+
+    /** 按候选顺序解析类，全部 miss 返回 null（不打印每个 miss，避免刷屏）。 */
+    private static Class<?> findClassAny(ClassLoader cl, String... names) {
+        for (String name : names) {
+            try {
+                return XposedHelpers.findClass(name, cl);
+            } catch (Throwable ignored) {
+            }
+        }
+        XposedInit.log("MyMessageBadgeHook: continuation class not found: "
+                + String.join("/", names));
+        return null;
     }
 
     private static void hookAllSafe(Class<?> cls, String method, XC_MethodHook cb) {

@@ -25,7 +25,8 @@ import java.util.Map;
  *  - Hook（两步路）进程通过 ContentResolver 查询 content://<authority>/settings 读取（见 {@link Prefs}）。
  *
  * 该通道不依赖任何 LSPosed 私有机制：1.9.x / 2.x 及以后版本通用。
- * 数据面仅包含开关布尔值，不涉及用户敏感信息；Provider 只读（增删改一律拒绝）。
+ * 数据面仅包含开关布尔值，不涉及用户敏感信息；读取对所有人开放，
+ * 写入仅接受目标应用（两步路）进程的请求（供内嵌「模块设置」弹窗持久化开关，见 {@link SidebarSettingsHook}）。
  */
 public final class PrefsProvider extends ContentProvider {
 
@@ -68,16 +69,46 @@ public final class PrefsProvider extends ContentProvider {
 
     @Override
     public Uri insert(Uri uri, ContentValues values) {
-        throw new UnsupportedOperationException("read-only provider");
+        writeOneSwitch(values);
+        return uri;
     }
 
     @Override
     public int delete(Uri uri, String selection, String[] selectionArgs) {
-        throw new UnsupportedOperationException("read-only provider");
+        throw new UnsupportedOperationException("delete not supported");
     }
 
     @Override
     public int update(Uri uri, ContentValues values, String selection, String[] selectionArgs) {
-        throw new UnsupportedOperationException("read-only provider");
+        return writeOneSwitch(values);
+    }
+
+    /**
+     * 写入单个开关（供两步路内嵌的「模块设置」弹窗持久化）。
+     * 只接受来自目标应用（{@link Prefs#TARGET_PKG}）的调用，且 key 必须是已知开关，
+     * 避免任意应用篡改配置或注入未知键。
+     *
+     * @return 实际写入的行数（0 = 被拒绝或参数非法）
+     */
+    private int writeOneSwitch(ContentValues values) {
+        String caller = getCallingPackage();
+        if (caller != null && !Prefs.TARGET_PKG.equals(caller)) {
+            Log.w(LOG_TAG, "PrefsProvider: rejected write from " + caller);
+            return 0;
+        }
+        Context context = getContext();
+        if (context == null || values == null) {
+            return 0;
+        }
+        String key = values.getAsString(Prefs.COLUMN_KEY);
+        Integer value = values.getAsInteger(Prefs.COLUMN_VALUE);
+        if (!Prefs.isKnownKey(key) || value == null) {
+            Log.w(LOG_TAG, "PrefsProvider: rejected write key=" + key + " value=" + value);
+            return 0;
+        }
+        boolean enabled = value != 0;
+        Prefs.ui(context).edit().putBoolean(key, enabled).apply();
+        Log.i(LOG_TAG, "PrefsProvider: " + key + " <- " + enabled + " from " + caller);
+        return 1;
     }
 }

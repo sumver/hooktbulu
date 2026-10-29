@@ -2,6 +2,7 @@ package com.tbulu.adfree;
 
 import android.app.AndroidAppHelper;
 import android.app.Application;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.database.Cursor;
@@ -13,6 +14,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 功能开关配置（模块设置界面 ↔ Hook 进程的桥梁）。
@@ -35,8 +37,16 @@ final class Prefs {
 
     /** 与 app/build.gradle 的 applicationId 保持一致（不依赖 BuildConfig 的开关）。 */
     static final String MODULE_PKG = "com.sumver.tbulu";
+    /** 被 Hook 的目标应用包名（供模块 App 进程校验写入来源，避免直接引用 Xposed API）。 */
+    static final String TARGET_PKG = "com.lolaage.tbulu.tools";
     /** 设置界面与 Hook 共用同一偏好文件名。 */
     static final String FILE = "settings";
+
+    /**
+     * 并入单个 APK（LSPatch 本地模式等：模块与目标同进程、无独立模块 App）后，
+     * 配置落在**宿主应用自己**的偏好文件；独立文件名以避免与宿主同名文件冲突。
+     */
+    static final String HOST_FILE = "tbulu_adfree_settings";
 
     /**
      * 配置桥（只读 ContentProvider）authority：= applicationId + ".prefs"。
@@ -131,6 +141,14 @@ final class Prefs {
     /** Hook 进程的配置快照；null = 尚未加载完成（此时按默认值行事）。 */
     private static volatile Map<String, Boolean> sSnapshot;
 
+    /**
+     * 本进程内被就地改写的开关（来源：两步路内嵌的「模块设置」弹窗，见 {@link SidebarSettingsHook}）。
+     * 优先级高于 {@link #sSnapshot}：同一进程的 Hook 读取时立即生效、无需重启；
+     * 同时会持久化到配置源（独立模块 App → PrefsProvider；并入单 APK 后 → 本地偏好），
+     * 因此下一次启动仍然保留。
+     */
+    private static final Map<String, Boolean> sOverrides = new ConcurrentHashMap<>();
+
     private static final Object sLoadLock = new Object();
     /** 是否已发起加载（每个进程只发起一轮；失败会固定为空快照，不再重试）。 */
     private static boolean sLoadStarted;
@@ -155,10 +173,22 @@ final class Prefs {
     }
 
     /**
+     * 宿主应用本地配置（并入单 APK / LSPatch 本地模式的持久化位置）。
+     * 模块 App 进程不使用它（模块 App 用 {@link #ui}）。
+     */
+    static SharedPreferences hostPrefs(Context context) {
+        return context.getSharedPreferences(HOST_FILE, Context.MODE_PRIVATE);
+    }
+
+    /**
      * Hook 进程使用：开关是否开启（快照未就绪 / 读取失败 = 内置默认值）。
      * 不阻塞：首次调用会发起异步加载，快照就绪后各次调用即返回真实配置。
      */
     static boolean isEnabled(String key) {
+        Boolean override = sOverrides.get(key);
+        if (override != null) {
+            return override;
+        }
         Map<String, Boolean> snapshot = sSnapshot;
         if (snapshot == null) {
             ensureLoadStarted();
@@ -166,6 +196,84 @@ final class Prefs {
         }
         Boolean value = snapshot.get(key);
         return value == null ? defaultOf(key) : value;
+    }
+
+    /**
+     * 就地修改开关（供两步路内嵌的「模块设置」弹窗使用）：
+     *  1) 同步更新本进程内存值 → 同进程的 Hook 立即按新值行事（无需重启）；
+     *  2) 后台线程持久化到配置源 → 下次启动仍然保留：
+     *     - 独立模块 App 形态：经 {@link PrefsProvider} 写入模块 App 的偏好文件；
+     *     - 并入单个 APK（LSPatch 本地模式等，无独立模块 App）：写宿主应用本地 {@link #HOST_FILE}。
+     *
+     * 持久化放后台线程，避免跨进程写入在 UI 线程阻塞（首次写入会拉起模块 App 进程）。
+     */
+    static void setEnabled(Context context, String key, boolean value) {
+        sOverrides.put(key, value);
+        if (context == null) {
+            return;
+        }
+        final Context appContext = context.getApplicationContext() != null
+                ? context.getApplicationContext() : context;
+        final String fKey = key;
+        final boolean fValue = value;
+        Thread writer = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                persist(appContext, fKey, fValue);
+            }
+        }, "TbuluAdFree-PrefsWrite");
+        writer.setDaemon(true);
+        writer.start();
+    }
+
+    /** 持久化单个开关到配置源（后台线程调用）。 */
+    private static void persist(Context context, String key, boolean value) {
+        try {
+            if (MODULE_PKG.equals(context.getPackageName())) {
+                ui(context).edit().putBoolean(key, value).apply();
+                XposedInit.log("Prefs: " + key + " = " + value + " persisted (local)");
+                return;
+            }
+            if (!isModuleAppInstalled(context)) {
+                // 并入单 APK / LSPatch 本地模式：无独立模块 App，直接写宿主本地
+                hostPrefs(context).edit().putBoolean(key, value).apply();
+                XposedInit.log("Prefs: " + key + " = " + value + " persisted (host-local)");
+                return;
+            }
+            ContentValues values = new ContentValues();
+            values.put(COLUMN_KEY, key);
+            values.put(COLUMN_VALUE, value ? 1 : 0);
+            int rows = context.getContentResolver().update(PROVIDER_URI, values, null, null);
+            if (rows > 0) {
+                XposedInit.log("Prefs: " + key + " = " + value + " persisted (rows=" + rows + ")");
+                return;
+            }
+            // provider 写不进去（并入单 APK / LSPatch 本地模式：无独立模块 App 进程）
+            hostPrefs(context).edit().putBoolean(key, value).apply();
+            XposedInit.log("Prefs: " + key + " = " + value + " persisted (host-local; provider unavailable)");
+        } catch (Throwable t) {
+            // provider 不可达等：兜底写宿主本地，保证重启后仍保留
+            try {
+                hostPrefs(context).edit().putBoolean(key, value).apply();
+                XposedInit.log("Prefs: " + key + " = " + value
+                        + " persisted (host-local fallback after error)");
+            } catch (Throwable t2) {
+                XposedInit.log("Prefs: persist failed for " + key + "=" + value + ": " + t2);
+            }
+        }
+    }
+
+    /** key 是否属于已知开关（用于 Provider 写入口的合法性校验）。 */
+    static boolean isKnownKey(String key) {
+        if (key == null) {
+            return false;
+        }
+        for (String known : allKeys()) {
+            if (known.equals(key)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** 供 XposedInit 在进程启动时尽早触发配置加载（异步、不阻塞）。 */
@@ -193,9 +301,23 @@ final class Prefs {
 
     /**
      * 后台加载：等 Application 就绪 → 查询模块 App 的只读 ContentProvider → 填充快照。
-     * 失败会重试有限次；最终失败时固定为空快照（此后一律用内置默认值），并明确记录日志。
+     * provider 不可用时（例如并入单个 APK / LSPatch 本地模式：没有独立模块 App 进程），
+     * 回退读取**宿主应用本地**的 {@link #HOST_FILE}；仍无配置则用内置默认值。
      */
     private static void loadFromProvider() {
+        Application lastApp = null;
+        // 先判断是否存在独立模块 App：不存在（并入单 APK / LSPatch 本地模式）则直接读宿主本地，
+        // 避免在无 provider 的环境里白白重试、拖慢配置就绪。
+        Application app0 = waitForApplication();
+        if (app0 != null && !isModuleAppInstalled(app0)) {
+            Map<String, Boolean> local = readHostPrefs(app0);
+            sSnapshot = local;
+            XposedInit.log("Prefs: module app absent; loaded " + local.size()
+                    + " switches via host-local prefs (merged single-APK mode)");
+            return;
+        }
+        lastApp = app0;
+
         for (int attempt = 1; attempt <= MAX_LOAD_ATTEMPTS; attempt++) {
             Application app = waitForApplication();
             if (app == null) {
@@ -203,6 +325,7 @@ final class Prefs {
                 sleepQuietly(400L);
                 continue;
             }
+            lastApp = app;
             Map<String, Boolean> loaded = queryProvider(app);
             if (loaded != null) {
                 sSnapshot = loaded;
@@ -212,10 +335,45 @@ final class Prefs {
             }
             sleepQuietly(300L * attempt);
         }
+
+        // provider 不可用：尝试宿主应用本地配置（并入单 APK / LSPatch 本地模式的场景）
+        Map<String, Boolean> local = lastApp == null ? null : readHostPrefs(lastApp);
+        if (local != null && !local.isEmpty()) {
+            sSnapshot = local;
+            XposedInit.log("Prefs: loaded " + local.size()
+                    + " switches via host-local prefs (no module provider; merged single-APK mode)");
+            return;
+        }
+
         sSnapshot = Collections.emptyMap();
         XposedInit.log("Prefs: provider unavailable after " + MAX_LOAD_ATTEMPTS
                 + " attempts; 回退内置默认值（普通开关开启，「隐藏坚持运动天数」「隐藏消息未读数」默认关闭）。"
                 + "请确认模块 App 已安装，并打开过一次模块设置界面");
+    }
+
+    /** 读取宿主应用本地配置（并入单 APK 场景；只认已知 switch key）。 */
+    private static Map<String, Boolean> readHostPrefs(Context context) {
+        Map<String, Boolean> out = new HashMap<>();
+        try {
+            for (Map.Entry<String, ?> entry : hostPrefs(context).getAll().entrySet()) {
+                Object value = entry.getValue();
+                if (value instanceof Boolean && isKnownKey(entry.getKey())) {
+                    out.put(entry.getKey(), (Boolean) value);
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return out;
+    }
+
+    /** 是否存在独立的模块 App（并入单 APK / LSPatch 本地模式时不存在）。 */
+    private static boolean isModuleAppInstalled(Context context) {
+        try {
+            context.getPackageManager().getPackageInfo(MODULE_PKG, 0);
+            return true;
+        } catch (Throwable t) {
+            return false;
+        }
     }
 
     /** 等待目标应用 Application 创建（Hook 进程启动早期可能为 null）。 */
